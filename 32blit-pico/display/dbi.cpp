@@ -194,7 +194,7 @@ static void send_init_sequence() {
   // ST7735S-specific window offset for common 128x128 displays
   if(DISPLAY_WIDTH == 128) {
     window_x = 2;
-    window_y = 1;
+    window_y = 3; // Offset 2 pixels down from default
   }
 #else
   // ST7789 initialization sequence (existing code)
@@ -239,13 +239,21 @@ static void send_init_sequence() {
   }
 #endif
 
-  command(MIPIDCS::EnterInvertMode);   // set inversion mode
+#ifdef DISPLAY_ST7735S
+  command(MIPIDCS::ExitInvertMode);    // ST7735S typically needs normal colors
+#else
+  command(MIPIDCS::EnterInvertMode);   // ST7789 needs inverted colors
+#endif
   command(MIPIDCS::ExitSleepMode);  // leave sleep mode
   command(MIPIDCS::DisplayOn);  // turn display on
 
   sleep_ms(100);
 
-  uint8_t madctl = MADCTL::RGB | rotations[LCD_ROTATION / 90];
+#ifdef DISPLAY_ST7735S
+  uint8_t madctl = rotations[LCD_ROTATION / 90];  // ST7735S uses BGR (RGB bit cleared)
+#else
+  uint8_t madctl = MADCTL::RGB | rotations[LCD_ROTATION / 90];  // ST7789 uses RGB
+#endif
   command(MIPIDCS::SetAddressMode, 1, (char *)&madctl);
 
   set_window(window_x, window_y, DISPLAY_WIDTH, DISPLAY_HEIGHT);
