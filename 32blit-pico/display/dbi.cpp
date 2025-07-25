@@ -55,18 +55,18 @@ enum ST7789Reg
 
 enum ST7735Reg
 {
-  ST7735_FRMCTR1 = 0xB1,
-  ST7735_FRMCTR2 = 0xB2,
-  ST7735_FRMCTR3 = 0xB3,
-  ST7735_INVCTR  = 0xB4,
-  ST7735_PWCTR1  = 0xC0,
-  ST7735_PWCTR2  = 0xC1,
-  ST7735_PWCTR3  = 0xC2,
-  ST7735_PWCTR4  = 0xC3,
-  ST7735_PWCTR5  = 0xC4,
-  ST7735_VMCTR1  = 0xC5,
-  ST7735_GMCTRP1 = 0xE0,
-  ST7735_GMCTRN1 = 0xE1,
+  FRMCTR1 = 0xB1,
+  FRMCTR2 = 0xB2,
+  FRMCTR3 = 0xB3,
+  INVCTR  = 0xB4,
+  PWCTR1  = 0xC0,
+  PWCTR2  = 0xC1,
+  PWCTR3  = 0xC2,
+  PWCTR4  = 0xC3,
+  PWCTR5  = 0xC4,
+  VMCTR1  = 0xC5,
+  GMCTRP1 = 0xE0,
+  GMCTRN1 = 0xE1,
 };
 
 static PIO pio = pio0;
@@ -175,21 +175,21 @@ static void send_init_sequence() {
 
 #ifdef DISPLAY_ST7735S
   // ST7735S initialization sequence
-  command(ST7735Reg::ST7735_FRMCTR1, 3, "\x01\x2C\x2D"); // Frame rate ctrl - normal mode
-  command(ST7735Reg::ST7735_FRMCTR2, 3, "\x01\x2C\x2D"); // Frame rate ctrl - idle mode
-  command(ST7735Reg::ST7735_FRMCTR3, 6, "\x01\x2C\x2D\x01\x2C\x2D"); // Frame rate ctrl - partial mode
-  command(ST7735Reg::ST7735_INVCTR,  1, "\x07"); // Display inversion ctrl
+  command(ST7735Reg::FRMCTR1, 3, "\x01\x2C\x2D"); // Frame rate ctrl - normal mode
+  command(ST7735Reg::FRMCTR2, 3, "\x01\x2C\x2D"); // Frame rate ctrl - idle mode
+  command(ST7735Reg::FRMCTR3, 6, "\x01\x2C\x2D\x01\x2C\x2D"); // Frame rate ctrl - partial mode
+  command(ST7735Reg::INVCTR,  1, "\x07"); // Display inversion ctrl
 
-  command(ST7735Reg::ST7735_PWCTR1, 3, "\xA2\x02\x84"); // Power control
-  command(ST7735Reg::ST7735_PWCTR2, 1, "\xC5"); // Power control
-  command(ST7735Reg::ST7735_PWCTR3, 2, "\x0A\x00"); // Power control
-  command(ST7735Reg::ST7735_PWCTR4, 2, "\x8A\x2A"); // Power control
-  command(ST7735Reg::ST7735_PWCTR5, 2, "\x8A\xEE"); // Power control
+  command(ST7735Reg::PWCTR1, 3, "\xA2\x02\x84"); // Power control
+  command(ST7735Reg::PWCTR2, 1, "\xC5"); // Power control
+  command(ST7735Reg::PWCTR3, 2, "\x0A\x00"); // Power control
+  command(ST7735Reg::PWCTR4, 2, "\x8A\x2A"); // Power control
+  command(ST7735Reg::PWCTR5, 2, "\x8A\xEE"); // Power control
 
-  command(ST7735Reg::ST7735_VMCTR1, 1, "\x0E"); // VCOM control
+  command(ST7735Reg::VMCTR1, 1, "\x0E"); // VCOM control
 
-  command(ST7735Reg::ST7735_GMCTRP1, 16, "\x02\x1c\x07\x12\x37\x32\x29\x2d\x29\x25\x2B\x39\x00\x01\x03\x10"); // Gamma
-  command(ST7735Reg::ST7735_GMCTRN1, 16, "\x03\x1d\x07\x06\x2E\x2C\x29\x2D\x2E\x2E\x37\x3F\x00\x00\x02\x10"); // Gamma
+  command(ST7735Reg::GMCTRP1, 16, "\x02\x1c\x07\x12\x37\x32\x29\x2d\x29\x25\x2B\x39\x00\x01\x03\x10"); // Gamma
+  command(ST7735Reg::GMCTRN1, 16, "\x03\x1d\x07\x06\x2E\x2C\x29\x2D\x2E\x2E\x37\x3F\x00\x00\x02\x10"); // Gamma
   
   // ST7735S-specific window offset for common 128x128 displays
   if(DISPLAY_WIDTH == 128) {
