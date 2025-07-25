@@ -17,6 +17,9 @@
 
 #define DISPLAY_ST7735S
 
+#define PICO_AUDIO_PWM_MONO_PIN 20
+#define PICO_AUDIO_PWM_PIO 0
+
 #define LCD_SCK_PIN 10
 #define LCD_MOSI_PIN 11
 #define LCD_BACKLIGHT_PIN 12
