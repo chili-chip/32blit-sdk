@@ -53,6 +53,22 @@ enum ST7789Reg
   NVGAMCTRL = 0xE1,
 };
 
+enum ST7735Reg
+{
+  FRMCTR1 = 0xB1,
+  FRMCTR2 = 0xB2,
+  FRMCTR3 = 0xB3,
+  INVCTR  = 0xB4,
+  PWCTR1  = 0xC0,
+  PWCTR2  = 0xC1,
+  PWCTR3  = 0xC2,
+  PWCTR4  = 0xC3,
+  PWCTR5  = 0xC4,
+  VMCTR1  = 0xC5,
+  GMCTRP1 = 0xE0,
+  GMCTRN1 = 0xE1,
+};
+
 static PIO pio = pio0;
 static uint pio_sm = 0;
 static uint pio_offset = 0, pio_double_offset = 0;
@@ -157,6 +173,31 @@ static void send_init_sequence() {
 
   int window_x = 0, window_y = 0;
 
+#ifdef DISPLAY_ST7735S
+  // ST7735S initialization sequence
+  command(ST7735Reg::FRMCTR1, 3, "\x01\x2C\x2D"); // Frame rate ctrl - normal mode
+  command(ST7735Reg::FRMCTR2, 3, "\x01\x2C\x2D"); // Frame rate ctrl - idle mode
+  command(ST7735Reg::FRMCTR3, 6, "\x01\x2C\x2D\x01\x2C\x2D"); // Frame rate ctrl - partial mode
+  command(ST7735Reg::INVCTR,  1, "\x07"); // Display inversion ctrl
+
+  command(ST7735Reg::PWCTR1, 3, "\xA2\x02\x84"); // Power control
+  command(ST7735Reg::PWCTR2, 1, "\xC5"); // Power control
+  command(ST7735Reg::PWCTR3, 2, "\x0A\x00"); // Power control
+  command(ST7735Reg::PWCTR4, 2, "\x8A\x2A"); // Power control
+  command(ST7735Reg::PWCTR5, 2, "\x8A\xEE"); // Power control
+
+  command(ST7735Reg::VMCTR1, 1, "\x0E"); // VCOM control
+
+  command(ST7735Reg::GMCTRP1, 16, "\x02\x1c\x07\x12\x37\x32\x29\x2d\x29\x25\x2B\x39\x00\x01\x03\x10"); // Gamma
+  command(ST7735Reg::GMCTRN1, 16, "\x03\x1d\x07\x06\x2E\x2C\x29\x2D\x2E\x2E\x37\x3F\x00\x00\x02\x10"); // Gamma
+  
+  // ST7735S-specific window offset for common 128x128 displays
+  if(DISPLAY_WIDTH == 128) {
+    window_x = 2;
+    window_y = 3; // Offset 2 pixels down from default
+  }
+#else
+  // ST7789 initialization sequence (existing code)
   if(DISPLAY_WIDTH == 240 && DISPLAY_HEIGHT == 240) {
     command(ST7789Reg::PORCTRL, 5, "\x0c\x0c\x00\x33\x33");
     command(ST7789Reg::GCTRL, 1, "\x14");
@@ -169,7 +210,6 @@ static void send_init_sequence() {
 
     command(ST7789Reg::PVGAMCTRL, 14, "\xD0\x08\x11\x08\x0c\x15\x39\x33\x50\x36\x13\x14\x29\x2d");
     command(ST7789Reg::NVGAMCTRL, 14, "\xD0\x08\x10\x08\x06\x06\x39\x44\x51\x0b\x16\x14\x2f\x31");
-
 
     // trigger "vsync" slightly earlier to avoid tearing while pixel-doubling
     // (this is still outside of the visible part of the screen)
@@ -192,20 +232,29 @@ static void send_init_sequence() {
 
   command(ST7789Reg::FRCTRL2, 1, "\x15"); // 50Hz
 
-  command(MIPIDCS::EnterInvertMode);   // set inversion mode
+  // setup correct addressing window for ST7789
+  if(DISPLAY_WIDTH == 240 && DISPLAY_HEIGHT == 135) {
+    window_x = 40;
+    window_y = 53;
+  }
+#endif
+
+#ifdef DISPLAY_ST7735S
+  command(MIPIDCS::ExitInvertMode);    // ST7735S typically needs normal colors
+#else
+  command(MIPIDCS::EnterInvertMode);   // ST7789 needs inverted colors
+#endif
   command(MIPIDCS::ExitSleepMode);  // leave sleep mode
   command(MIPIDCS::DisplayOn);  // turn display on
 
   sleep_ms(100);
 
-  uint8_t madctl = MADCTL::RGB | rotations[LCD_ROTATION / 90];
+#ifdef DISPLAY_ST7735S
+  uint8_t madctl = rotations[LCD_ROTATION / 90];  // ST7735S uses BGR (RGB bit cleared)
+#else
+  uint8_t madctl = MADCTL::RGB | rotations[LCD_ROTATION / 90];  // ST7789 uses RGB
+#endif
   command(MIPIDCS::SetAddressMode, 1, (char *)&madctl);
-
-  // setup correct addressing window
-  if(DISPLAY_WIDTH == 240 && DISPLAY_HEIGHT == 135) {
-    window_x = 40;
-    window_y = 53;
-  }
 
   set_window(window_x, window_y, DISPLAY_WIDTH, DISPLAY_HEIGHT);
 }
