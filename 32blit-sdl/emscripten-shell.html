@@ -5,6 +5,15 @@
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <title>32Blit Game</title>
     <style>
+      body {
+        background-color: black;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        width: 100vw;
+        height: 100vh;
+      }
+
       .emscripten { padding-right: 0; margin-left: auto; margin-right: auto; display: block; }
 
       div.emscripten { text-align: center; }
@@ -13,7 +22,15 @@
         border: 0px none;
         background-color: black;
         image-rendering: pixelated;
-        image-rendering: crisp-edges;
+        width: 100vw;
+        height: auto;
+        max-height: 100vh;
+        object-fit: contain;
+        object-position: center top;
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 10;
       }
 
       .spinner {
@@ -32,6 +49,45 @@
         to {transform: rotate(360deg);}
       }
 
+      .mc-btn {
+        background: #222;
+        color: #fff;
+        border: 2px solid #888;
+        border-radius: 16px;
+        margin: 0 1em;
+        font-family: inherit;
+        font-weight: bold;
+        box-shadow: 0 2px 8px #0008;
+        outline: none;
+        transition: background 0.1s, border 0.1s;
+        user-select: none;
+        -webkit-user-select: none;
+        touch-action: manipulation;
+        width: 80px;
+        height: 80px;
+        font-size: 4em;
+        padding: 100px;
+      }
+      .mc-btn:active {
+        background: #444;
+        border-color: #fff;
+      }
+      #mobile-controls {
+        user-select: none;
+        -webkit-user-select: none;
+        touch-action: manipulation;
+        width: 100vw;
+        max-width: 100vw;
+        position: fixed;
+        left: 0;
+        bottom: 0;
+        margin: 0 auto;
+        text-align: center;
+        z-index: 1001;
+        pointer-events: auto;
+        padding-bottom: 2.5em;
+        padding-top: 0.5em;
+      }
     </style>
   </head>
   <body>
@@ -42,6 +98,24 @@
     </div>
 
     <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
+
+    <!-- Mobile Controls -->
+    <div id="mobile-controls" style="display: none;">
+      <div style="height: 1em;"></div>
+      <div style="display: flex; justify-content: center; align-items: center; gap: 2vw;">
+        <button class="mc-btn" data-key="w" >&#8593;</button>
+      </div>
+      <div style="display: flex; justify-content: center; align-items: center; gap: 2vw; margin-top: 0.5em;">
+        <button class="mc-btn" data-key="a" >&#8592;</button>
+        <button class="mc-btn" data-key="s" >&#8595;</button>
+        <button class="mc-btn" data-key="d" >&#8594;</button>
+      </div>
+      <div style="display: flex; justify-content: center; align-items: center; gap: 2vw; margin-top: 1em;">
+        <button class="mc-btn" data-key="z">A</button>
+        <button class="mc-btn" data-key="x">B</button>
+      </div>
+      <div style="height: 1em;"></div>
+    </div>
 
     <script type='text/javascript'>
       var statusElement = document.getElementById('status');
@@ -119,6 +193,46 @@
           if (text) Module.printErr('[post-exception status] ' + text);
         };
       };
+
+      // Show mobile controls if on a touch device
+      function isTouchDevice() {
+        return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+      }
+      if(isTouchDevice()) {
+        document.getElementById('mobile-controls').style.display = '';
+      }
+      // Send keyboard events from mobile controls
+      function sendKeyEvent(type, key) {
+        var event = new KeyboardEvent(type, {
+          key: key,
+          code: key.length === 1 ? 'Key' + key.toUpperCase() : key,
+          bubbles: true,
+          cancelable: true
+        });
+        document.dispatchEvent(event);
+      }
+      document.addEventListener('DOMContentLoaded', function() {
+        var btns = document.querySelectorAll('.mc-btn');
+        btns.forEach(function(btn) {
+          btn.addEventListener('touchstart', function(e) {
+            e.preventDefault();
+            sendKeyEvent('keydown', btn.dataset.key);
+          });
+          btn.addEventListener('touchend', function(e) {
+            e.preventDefault();
+            sendKeyEvent('keyup', btn.dataset.key);
+          });
+          btn.addEventListener('mousedown', function(e) {
+            sendKeyEvent('keydown', btn.dataset.key);
+          });
+          btn.addEventListener('mouseup', function(e) {
+            sendKeyEvent('keyup', btn.dataset.key);
+          });
+          btn.addEventListener('mouseleave', function(e) {
+            sendKeyEvent('keyup', btn.dataset.key);
+          });
+        });
+      });
     </script>
     {{{ SCRIPT }}}
   </body>
