@@ -103,12 +103,12 @@
     <div id="mobile-controls" style="display: none;">
       <div style="height: 1em;"></div>
       <div style="display: flex; justify-content: center; align-items: center; gap: 2vw;">
-        <button class="mc-btn" data-key="w" >&#8593;</button>
+        <button class="mc-btn" data-key="ArrowUp">&#8593;</button>
       </div>
       <div style="display: flex; justify-content: center; align-items: center; gap: 2vw; margin-top: 0.5em;">
-        <button class="mc-btn" data-key="a" >&#8592;</button>
-        <button class="mc-btn" data-key="s" >&#8595;</button>
-        <button class="mc-btn" data-key="d" >&#8594;</button>
+        <button class="mc-btn" data-key="ArrowLeft">&#8592;</button>
+        <button class="mc-btn" data-key="ArrowDown">&#8595;</button>
+        <button class="mc-btn" data-key="ArrowRight">&#8594;</button>
       </div>
       <div style="display: flex; justify-content: center; align-items: center; gap: 2vw; margin-top: 1em;">
         <button class="mc-btn" data-key="z">A</button>
@@ -207,11 +207,11 @@
       function sendKeyEvent(type, key) {
         var event = new KeyboardEvent(type, {
           key: key,
-          code: key.length === 1 ? 'Key' + key.toUpperCase() : key,
+          code: key.startsWith("Arrow") ? key : "Key" + key.toUpperCase(),
           bubbles: true,
           cancelable: true
         });
-        document.dispatchEvent(event);
+        document.getElementById('canvas').dispatchEvent(event);
       }
       document.addEventListener('DOMContentLoaded', function() {
         var btns = document.querySelectorAll('.mc-btn');
