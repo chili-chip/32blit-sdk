@@ -8,6 +8,9 @@ on:
   release:
     types: [published]
 
+permissions:
+  contents: write
+
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
   BUILD_TYPE: Release
@@ -73,7 +76,7 @@ jobs:
             name: Visual Studio
             cache-key: windows
             release-suffix: WIN64
-            cmake-args: -DSDL2_DIR=$GITHUB_WORKSPACE/vs/sdl
+            cmake-args: -DSDL2_DIR=$GITHUB_WORKSPACE/vs/sdl -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 
     runs-on: ${{matrix.os}}
 
@@ -95,7 +98,7 @@ jobs:
       if: matrix.pico-sdk
       uses: actions/checkout@v4
       with:
-        repository: raspberrypi/pico-sdk
+        repository: chili-chip/pico-sdk
         path: pico-sdk
         submodules: true
 
@@ -103,7 +106,7 @@ jobs:
       if: matrix.pico-sdk
       uses: actions/checkout@v4
       with:
-        repository: raspberrypi/pico-extras
+        repository: chili-chip/pico-extras
         path: pico-extras
 
     # PicoVision needs the RAM driver and the firmware
