@@ -15,6 +15,7 @@
 #include "Renderer.hpp"
 #include "Audio.hpp"
 #include "UserCode.hpp"
+#include "32blit.hpp" // for blit::Button enum used in virtual key polling
 
 #include "contrib.hpp"
 
@@ -141,6 +142,43 @@ void em_loop() {
 	while (SDL_PollEvent(&event)) {
 		handle_event(event);
 	}
+
+	// Poll virtual keys from JS (set by on-screen buttons). Avoid synthetic keyboard reliability issues on mobile.
+	EM_ASM({
+	  if(Module.VirtualKeys){
+	    var vk = Module.VirtualKeys;
+	    // Build a bitfield mirroring blit::Button enumeration subset in input.hpp
+	    // DPAD_LEFT=1, DPAD_RIGHT=2, DPAD_UP=4, DPAD_DOWN=8, A=16, B=32, X=64, Y=128, MENU=256, HOME=512
+	    var bits = 0;
+	    if(vk['a']) bits |= 1;      // left
+	    if(vk['d']) bits |= 2;      // right
+	    if(vk['w']) bits |= 4;      // up
+	    if(vk['s']) bits |= 8;      // down
+	    if(vk['z']) bits |= 16;     // A
+	    if(vk['x']) bits |= 32;     // B
+	    if(vk['c']) bits |= 64;     // X
+	    if(vk['v']) bits |= 128;    // Y
+	    if(vk['2']) bits |= 256;    // Menu
+	    if(vk['1']) bits |= 512;    // Home
+	    // Write to a global for retrieval via emscripten_run_script_uint below if needed.
+	    Module._vk_bits = bits;
+	  }
+	});
+
+	// Retrieve bitfield and apply to system buttons.
+	uint32_t vk_bits = (uint32_t)emscripten_run_script_int("Module._vk_bits || 0");
+	// For each button flag, set or clear.
+	// Reuse blit_system->set_button which handles locking & state updates.
+	blit_system->set_button(blit::Button::DPAD_LEFT,  (vk_bits & blit::Button::DPAD_LEFT));
+	blit_system->set_button(blit::Button::DPAD_RIGHT, (vk_bits & blit::Button::DPAD_RIGHT));
+	blit_system->set_button(blit::Button::DPAD_UP,    (vk_bits & blit::Button::DPAD_UP));
+	blit_system->set_button(blit::Button::DPAD_DOWN,  (vk_bits & blit::Button::DPAD_DOWN));
+	blit_system->set_button(blit::Button::A,          (vk_bits & blit::Button::A));
+	blit_system->set_button(blit::Button::B,          (vk_bits & blit::Button::B));
+	blit_system->set_button(blit::Button::X,          (vk_bits & blit::Button::X));
+	blit_system->set_button(blit::Button::Y,          (vk_bits & blit::Button::Y));
+	blit_system->set_button(blit::Button::MENU,       (vk_bits & blit::Button::MENU));
+	blit_system->set_button(blit::Button::HOME,       (vk_bits & blit::Button::HOME));
 
 	blit_multiplayer->update();
 	blit_system->loop();
