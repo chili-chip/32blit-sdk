@@ -143,12 +143,10 @@ void em_loop() {
 		handle_event(event);
 	}
 
-	// Poll virtual keys from JS (set by on-screen buttons). Avoid synthetic keyboard reliability issues on mobile.
+	// 1. Poll virtual (touch) keys from JS. (We keep the bitfield in Module._vk_bits.)
 	EM_ASM({
 	  if(Module.VirtualKeys){
 	    var vk = Module.VirtualKeys;
-	    // Build a bitfield mirroring blit::Button enumeration subset in input.hpp
-	    // DPAD_LEFT=1, DPAD_RIGHT=2, DPAD_UP=4, DPAD_DOWN=8, A=16, B=32, X=64, Y=128, MENU=256, HOME=512
 	    var bits = 0;
 	    if(vk['a']) bits |= 1;      // left
 	    if(vk['d']) bits |= 2;      // right
@@ -160,25 +158,40 @@ void em_loop() {
 	    if(vk['v']) bits |= 128;    // Y
 	    if(vk['2']) bits |= 256;    // Menu
 	    if(vk['1']) bits |= 512;    // Home
-	    // Write to a global for retrieval via emscripten_run_script_uint below if needed.
 	    Module._vk_bits = bits;
 	  }
 	});
 
-	// Retrieve bitfield and apply to system buttons.
 	uint32_t vk_bits = (uint32_t)emscripten_run_script_int("Module._vk_bits || 0");
-	// For each button flag, set or clear.
-	// Reuse blit_system->set_button which handles locking & state updates.
-	blit_system->set_button(blit::Button::DPAD_LEFT,  (vk_bits & blit::Button::DPAD_LEFT));
-	blit_system->set_button(blit::Button::DPAD_RIGHT, (vk_bits & blit::Button::DPAD_RIGHT));
-	blit_system->set_button(blit::Button::DPAD_UP,    (vk_bits & blit::Button::DPAD_UP));
-	blit_system->set_button(blit::Button::DPAD_DOWN,  (vk_bits & blit::Button::DPAD_DOWN));
-	blit_system->set_button(blit::Button::A,          (vk_bits & blit::Button::A));
-	blit_system->set_button(blit::Button::B,          (vk_bits & blit::Button::B));
-	blit_system->set_button(blit::Button::X,          (vk_bits & blit::Button::X));
-	blit_system->set_button(blit::Button::Y,          (vk_bits & blit::Button::Y));
-	blit_system->set_button(blit::Button::MENU,       (vk_bits & blit::Button::MENU));
-	blit_system->set_button(blit::Button::HOME,       (vk_bits & blit::Button::HOME));
+
+	// 2. Poll physical keyboard state directly (so we don't rely on earlier SDL_KEYDOWN ordering)
+	const Uint8 *keystate = SDL_GetKeyboardState(nullptr);
+	uint32_t kb_bits = 0;
+	if(keystate[SDL_SCANCODE_LEFT]  || keystate[SDL_SCANCODE_A]) kb_bits |= blit::Button::DPAD_LEFT;
+	if(keystate[SDL_SCANCODE_RIGHT] || keystate[SDL_SCANCODE_D]) kb_bits |= blit::Button::DPAD_RIGHT;
+	if(keystate[SDL_SCANCODE_UP]    || keystate[SDL_SCANCODE_W]) kb_bits |= blit::Button::DPAD_UP;
+	if(keystate[SDL_SCANCODE_DOWN]  || keystate[SDL_SCANCODE_S]) kb_bits |= blit::Button::DPAD_DOWN;
+	if(keystate[SDL_SCANCODE_Z]) kb_bits |= blit::Button::A;
+	if(keystate[SDL_SCANCODE_X]) kb_bits |= blit::Button::B;
+	if(keystate[SDL_SCANCODE_C]) kb_bits |= blit::Button::X;
+	if(keystate[SDL_SCANCODE_V]) kb_bits |= blit::Button::Y;
+	if(keystate[SDL_SCANCODE_2] || keystate[SDL_SCANCODE_ESCAPE]) kb_bits |= blit::Button::MENU; // ESC maps to MENU too
+	if(keystate[SDL_SCANCODE_1]) kb_bits |= blit::Button::HOME;
+
+	// 3. Combine (OR) virtual + keyboard so either source can hold a button.
+	uint32_t combined = vk_bits | kb_bits;
+
+	// 4. Apply combined mask (authoritative) each frame.
+	blit_system->set_button(blit::Button::DPAD_LEFT,  (combined & blit::Button::DPAD_LEFT));
+	blit_system->set_button(blit::Button::DPAD_RIGHT, (combined & blit::Button::DPAD_RIGHT));
+	blit_system->set_button(blit::Button::DPAD_UP,    (combined & blit::Button::DPAD_UP));
+	blit_system->set_button(blit::Button::DPAD_DOWN,  (combined & blit::Button::DPAD_DOWN));
+	blit_system->set_button(blit::Button::A,          (combined & blit::Button::A));
+	blit_system->set_button(blit::Button::B,          (combined & blit::Button::B));
+	blit_system->set_button(blit::Button::X,          (combined & blit::Button::X));
+	blit_system->set_button(blit::Button::Y,          (combined & blit::Button::Y));
+	blit_system->set_button(blit::Button::MENU,       (combined & blit::Button::MENU));
+	blit_system->set_button(blit::Button::HOME,       (combined & blit::Button::HOME));
 
 	blit_multiplayer->update();
 	blit_system->loop();

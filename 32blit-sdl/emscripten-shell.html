@@ -80,7 +80,11 @@
         transition: transform 90ms, box-shadow 160ms, background 200ms;
         position: relative;
         touch-action: manipulation;
+        outline: none;
+        -webkit-tap-highlight-color: transparent;
       }
+      /* Remove default focus ring but restore an accessible indication for keyboard users */
+      .mc-btn:focus { outline: none; }
       .mc-btn::after { /* glossy overlay */
         content:"";position:absolute;inset:4px;border-radius:18px;
         background: linear-gradient(145deg,#ffffff18,#00000040);
