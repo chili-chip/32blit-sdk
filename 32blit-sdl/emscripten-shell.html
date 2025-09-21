@@ -97,7 +97,7 @@
       <progress value="0" max="100" id="progress" hidden=1></progress>
     </div>
 
-    <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
+  <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex="0"></canvas>
 
     <!-- Mobile Controls -->
     <div id="mobile-controls" style="display: none;">
@@ -202,34 +202,42 @@
         document.getElementById('mobile-controls').style.display = '';
       }
       // Send keyboard events from mobile controls
-      function sendKeyEvent(type, key) {
+      function sendKeyEvent(target, type, key) {
         var event = new KeyboardEvent(type, {
           key: key,
           code: key.length === 1 ? 'Key' + key.toUpperCase() : key,
           bubbles: true,
           cancelable: true
         });
-        document.dispatchEvent(event);
+        target.dispatchEvent(event);
       }
       document.addEventListener('DOMContentLoaded', function() {
+        var canvas = document.getElementById('canvas');
+        var ensureFocus = function(){
+          if(document.activeElement !== canvas) {
+            try { canvas.focus(); } catch(e) {}
+          }
+        };
         var btns = document.querySelectorAll('.mc-btn');
         btns.forEach(function(btn) {
           btn.addEventListener('touchstart', function(e) {
             e.preventDefault();
-            sendKeyEvent('keydown', btn.dataset.key);
+            ensureFocus();
+            sendKeyEvent(canvas, 'keydown', btn.dataset.key);
           });
           btn.addEventListener('touchend', function(e) {
             e.preventDefault();
-            sendKeyEvent('keyup', btn.dataset.key);
+            sendKeyEvent(canvas, 'keyup', btn.dataset.key);
           });
           btn.addEventListener('mousedown', function(e) {
-            sendKeyEvent('keydown', btn.dataset.key);
+            ensureFocus();
+            sendKeyEvent(canvas, 'keydown', btn.dataset.key);
           });
           btn.addEventListener('mouseup', function(e) {
-            sendKeyEvent('keyup', btn.dataset.key);
+            sendKeyEvent(canvas, 'keyup', btn.dataset.key);
           });
           btn.addEventListener('mouseleave', function(e) {
-            sendKeyEvent('keyup', btn.dataset.key);
+            sendKeyEvent(canvas, 'keyup', btn.dataset.key);
           });
         });
       });
