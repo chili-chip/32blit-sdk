@@ -1,34 +1,37 @@
-#include <cstdlib>
-#include <math.h>
-
 #include "display.hpp"
 #include "display_commands.hpp"
-
 #include "hardware/clocks.h"
 #include "hardware/dma.h"
 #include "hardware/irq.h"
 #include "hardware/pwm.h"
 #include "pico/binary_info.h"
 #include "pico/time.h"
-
 #include "config.h"
+#include "dbi-spi.pio.h" // assuming SPI; adapt if 8-bit variant needed
 
-#ifdef DBI_8BIT
-#include "dbi-8bit.pio.h"
-#else
-#include "dbi-spi.pio.h"
-#endif
+// This driver provides ST7735S-specific init while reusing the common dbi implementation pattern.
+// It is derived from the original combined dbi.cpp but isolates the ST7735S path so the generic
+// dbi driver can focus on ST7789 (and related) panels.
 
 using namespace blit;
 
-// double buffering for lores
-static volatile int buf_index = 0;
+namespace {
 
+static PIO pio = pio0;
+static uint pio_sm = 0;
+static uint pio_offset = 0, pio_double_offset = 0;
+static uint32_t dma_channel = 0;
+static uint16_t win_w, win_h; // window size
+static bool write_mode = false; // in RAMWR
+static bool pixel_double = false;
+static uint16_t *frame_buffer = nullptr; // active frame buffer
+static uint16_t *upd_frame_buffer = nullptr; // for pixel doubling
+static volatile int cur_scanline = DISPLAY_HEIGHT; // pixel double scanline counter
 static volatile bool do_render = true;
-
 static bool have_vsync = false;
 static bool backlight_enabled = false;
 static uint32_t last_render = 0;
+static volatile int buf_index = 0; // double buffer index (lores)
 
 static const uint8_t rotations[]{
   0,                                                                                // 0
@@ -37,24 +40,7 @@ static const uint8_t rotations[]{
   MADCTL::SCAN_ORDER | MADCTL::SWAP_XY | MADCTL::ROW_ORDER                          // 270
 };
 
-enum ST7789Reg
-{
-  RAMCTRL   = 0xB0,
-  PORCTRL   = 0xB2,
-  GCTRL     = 0xB7,
-  VCOMS     = 0xBB,
-  LCMCTRL   = 0xC0,
-  VDVVRHEN  = 0xC2,
-  VRHS      = 0xC3,
-  VDVS      = 0xC4,
-  FRCTRL2   = 0xC6,
-  PWCTRL1   = 0xD0,
-  PVGAMCTRL = 0xE0,
-  NVGAMCTRL = 0xE1,
-};
-
-enum ST7735Reg
-{
+enum ST7735Reg {
   FRMCTR1 = 0xB1,
   FRMCTR2 = 0xB2,
   FRMCTR3 = 0xB3,
@@ -69,25 +55,6 @@ enum ST7735Reg
   GMCTRN1 = 0xE1,
 };
 
-static PIO pio = pio0;
-static uint pio_sm = 0;
-static uint pio_offset = 0, pio_double_offset = 0;
-
-static uint32_t dma_channel = 0;
-
-static uint16_t win_w, win_h; // window size
-
-static bool write_mode = false; // in RAMWR
-static bool pixel_double = false;
-static uint16_t *upd_frame_buffer = nullptr;
-
-// frame buffer where pixel data is stored
-static uint16_t *frame_buffer = nullptr;
-
-// pixel double scanline counter
-static volatile int cur_scanline = DISPLAY_HEIGHT;
-
-// PIO helpers
 static void pio_put_byte(PIO pio, uint sm, uint8_t b) {
   while (pio_sm_is_tx_fifo_full(pio, sm));
   *(volatile uint8_t*)&pio->txf[sm] = b;
@@ -99,7 +66,6 @@ static void pio_wait(PIO pio, uint sm) {
   while(!(pio->fdebug & stall_mask));
 }
 
-// used for pixel doubling
 static void __isr dbi_dma_irq_handler() {
   if(dma_channel_get_irq0_status(dma_channel)) {
     dma_channel_acknowledge_irq0(dma_channel);
@@ -123,7 +89,6 @@ static void command(uint8_t command, size_t len = 0, const char *data = nullptr)
     pio->sm[pio_sm].shiftctrl &= ~PIO_SM0_SHIFTCTRL_PULL_THRESH_BITS;
     pio->sm[pio_sm].shiftctrl |= (8 << PIO_SM0_SHIFTCTRL_PULL_THRESH_LSB) | PIO_SM0_SHIFTCTRL_AUTOPULL_BITS;
 
-    // switch back to raw
     pio_sm_restart(pio, pio_sm);
     pio_sm_set_wrap(pio, pio_sm, pio_offset + dbi_raw_wrap_target, pio_offset + dbi_raw_wrap);
     pio_sm_exec(pio, pio_sm, pio_encode_jmp(pio_offset));
@@ -133,14 +98,12 @@ static void command(uint8_t command, size_t len = 0, const char *data = nullptr)
   }
 
   gpio_put(LCD_CS_PIN, 0);
-
   gpio_put(LCD_DC_PIN, 0); // command mode
   pio_put_byte(pio, pio_sm, command);
 
   if(data) {
     pio_wait(pio, pio_sm);
     gpio_put(LCD_DC_PIN, 1); // data mode
-
     for(size_t i = 0; i < len; i++)
       pio_put_byte(pio, pio_sm, data[i]);
   }
@@ -152,161 +115,98 @@ static void command(uint8_t command, size_t len = 0, const char *data = nullptr)
 static void set_window(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
   uint32_t cols = __builtin_bswap32((x << 16) | (x + w - 1));
   uint32_t rows = __builtin_bswap32((y << 16) | (y + h - 1));
-
   command(MIPIDCS::SetColumnAddress, 4, (const char *)&cols);
   command(MIPIDCS::SetRowAddress, 4, (const char *)&rows);
-
-  win_w = w;
-  win_h = h;
+  win_w = w; win_h = h;
 }
 
 static void send_init_sequence() {
   command(MIPIDCS::SoftReset);
-
   sleep_ms(150);
-
-//#ifdef LCD_VSYNC_PIN
-  command(MIPIDCS::SetTearOn,      1, "\x00");  // enable frame sync signal if used
-//#endif
-
-  command(MIPIDCS::SetPixelFormat, 1, "\x05");  // 16 bits per pixel
+#ifdef LCD_VSYNC_PIN
+  command(MIPIDCS::SetTearOn, 1, "\x00");
+#endif
+  command(MIPIDCS::SetPixelFormat, 1, "\x05"); // 16bpp
 
   int window_x = 0, window_y = 0;
 
-  // ST7789 initialization sequence (existing code)
-  if(DISPLAY_WIDTH == 240 && DISPLAY_HEIGHT == 240) {
-    command(ST7789Reg::PORCTRL, 5, "\x0c\x0c\x00\x33\x33");
-    command(ST7789Reg::GCTRL, 1, "\x14");
-    command(ST7789Reg::VCOMS, 1, "\x37");
-    command(ST7789Reg::LCMCTRL, 1, "\x2c");
-    command(ST7789Reg::VDVVRHEN, 1, "\x01");
-    command(ST7789Reg::VRHS, 1, "\x12");
-    command(ST7789Reg::VDVS, 1, "\x20");
-    command(ST7789Reg::PWCTRL1, 2, "\xa4\xa1");
+  // ST7735S-specific init (extracted from original dbi.cpp)
+  command(ST7735Reg::FRMCTR1, 3, "\x01\x2C\x2D");
+  command(ST7735Reg::FRMCTR2, 3, "\x01\x2C\x2D");
+  command(ST7735Reg::FRMCTR3, 6, "\x01\x2C\x2D\x01\x2C\x2D");
+  command(ST7735Reg::INVCTR,  1, "\x07");
+  command(ST7735Reg::PWCTR1, 3, "\xA2\x02\x84");
+  command(ST7735Reg::PWCTR2, 1, "\xC5");
+  command(ST7735Reg::PWCTR3, 2, "\x0A\x00");
+  command(ST7735Reg::PWCTR4, 2, "\x8A\x2A");
+  command(ST7735Reg::PWCTR5, 2, "\x8A\xEE");
+  command(ST7735Reg::VMCTR1, 1, "\x0E");
+  command(ST7735Reg::GMCTRP1, 16, "\x02\x1c\x07\x12\x37\x32\x29\x2d\x29\x25\x2B\x39\x00\x01\x03\x10");
+  command(ST7735Reg::GMCTRN1, 16, "\x03\x1d\x07\x06\x2E\x2C\x29\x2D\x2E\x2E\x37\x3F\x00\x00\x02\x10");
 
-    command(ST7789Reg::PVGAMCTRL, 14, "\xD0\x08\x11\x08\x0c\x15\x39\x33\x50\x36\x13\x14\x29\x2d");
-    command(ST7789Reg::NVGAMCTRL, 14, "\xD0\x08\x10\x08\x06\x06\x39\x44\x51\x0b\x16\x14\x2f\x31");
-
-    // trigger "vsync" slightly earlier to avoid tearing while pixel-doubling
-    // (this is still outside of the visible part of the screen)
-    command(MIPIDCS::SetTearScanline, 2, "\x01\x2C");
+  if(DISPLAY_WIDTH == 128) {
+    window_x = 2;
+    window_y = 3; // typical 128x128 offset
   }
 
-  if(DISPLAY_WIDTH == 320 && DISPLAY_HEIGHT == 240) {
-    command(ST7789Reg::PORCTRL, 5, "\x0c\x0c\x00\x33\x33");
-    command(ST7789Reg::GCTRL, 1, "\x35");
-    command(ST7789Reg::VCOMS, 1, "\x1f");
-    command(ST7789Reg::LCMCTRL, 1, "\x2c");
-    command(ST7789Reg::VDVVRHEN, 1, "\x01");
-    command(ST7789Reg::VRHS, 1, "\x12");
-    command(ST7789Reg::VDVS, 1, "\x20");
-    command(ST7789Reg::PWCTRL1, 2, "\xa4\xa1");
-    command(0xd6, 1, "\xa1"); // ???
-    command(ST7789Reg::PVGAMCTRL, 14, "\xD0\x08\x11\x08\x0C\x15\x39\x33\x50\x36\x13\x14\x29\x2D");
-    command(ST7789Reg::NVGAMCTRL, 14, "\xD0\x08\x10\x08\x06\x06\x39\x44\x51\x0B\x16\x14\x2F\x31");
-  }
-
-  command(ST7789Reg::FRCTRL2, 1, "\x15"); // 50Hz
-
-  // setup correct addressing window for ST7789
-  if(DISPLAY_WIDTH == 240 && DISPLAY_HEIGHT == 135) {
-    window_x = 40;
-    window_y = 53;
-  }
-
-  command(MIPIDCS::EnterInvertMode);   // ST7789 needs inverted colors
-  command(MIPIDCS::ExitSleepMode);  // leave sleep mode
-  command(MIPIDCS::DisplayOn);  // turn display on
-
+  command(MIPIDCS::ExitInvertMode); // ST7735S normal colors
+  command(MIPIDCS::ExitSleepMode);
+  command(MIPIDCS::DisplayOn);
   sleep_ms(100);
 
-  uint8_t madctl = MADCTL::RGB | rotations[LCD_ROTATION / 90];  // ST7789 uses RGB
+  uint8_t madctl = rotations[LCD_ROTATION / 90]; // BGR (RGB bit cleared)
   command(MIPIDCS::SetAddressMode, 1, (char *)&madctl);
 
   set_window(window_x, window_y, DISPLAY_WIDTH, DISPLAY_HEIGHT);
 }
 
-static void prepare_write() {
-  pio_wait(pio, pio_sm);
+static void prepare_write();
 
-  // setup for writing
-  uint8_t r = MIPIDCS::WriteMemoryStart;
-  gpio_put(LCD_CS_PIN, 0);
-
-  gpio_put(LCD_DC_PIN, 0); // command mode
-  pio_put_byte(pio, pio_sm, r);
-  pio_wait(pio, pio_sm);
-
-  gpio_put(LCD_DC_PIN, 1); // data mode
-
-  pio_sm_set_enabled(pio, pio_sm, false);
-  pio_sm_restart(pio, pio_sm);
-
-  if(pixel_double) {
-    // switch program
-    pio_sm_set_wrap(pio, pio_sm, pio_double_offset + dbi_pixel_double_wrap_target, pio_double_offset + dbi_pixel_double_wrap);
-
-    // 32 bits, no autopull
-    pio->sm[pio_sm].shiftctrl &= ~(PIO_SM0_SHIFTCTRL_PULL_THRESH_BITS | PIO_SM0_SHIFTCTRL_AUTOPULL_BITS);
-
-    pio_sm_exec(pio, pio_sm, pio_encode_jmp(pio_double_offset));
-
-    // reconfigure dma size
-    dma_channel_hw_addr(dma_channel)->al1_ctrl &= ~DMA_CH0_CTRL_TRIG_DATA_SIZE_BITS;
-    dma_channel_hw_addr(dma_channel)->al1_ctrl |= DMA_SIZE_32 << DMA_CH0_CTRL_TRIG_DATA_SIZE_LSB;
-  } else {
-    // 16 bits, autopull
-    pio->sm[pio_sm].shiftctrl &= ~PIO_SM0_SHIFTCTRL_PULL_THRESH_BITS;
-    pio->sm[pio_sm].shiftctrl |= (16 << PIO_SM0_SHIFTCTRL_PULL_THRESH_LSB) | PIO_SM0_SHIFTCTRL_AUTOPULL_BITS;
-
-    dma_channel_hw_addr(dma_channel)->al1_ctrl &= ~DMA_CH0_CTRL_TRIG_DATA_SIZE_BITS;
-    dma_channel_hw_addr(dma_channel)->al1_ctrl |= DMA_SIZE_16 << DMA_CH0_CTRL_TRIG_DATA_SIZE_LSB;
-  }
-
-  pio_sm_set_enabled(pio, pio_sm, true);
-
-  write_mode = true;
-}
-
-static void update() {
+static void update_transfer() {
   dma_channel_wait_for_finish_blocking(dma_channel);
-
-  // update window if needed
   auto expected_win = cur_surf_info.bounds * (pixel_double ? 2 : 1);
-
   if(expected_win.w != win_w || expected_win.h != win_h)
     set_window((DISPLAY_WIDTH - expected_win.w) / 2, (DISPLAY_HEIGHT - expected_win.h) / 2, expected_win.w, expected_win.h);
-
   if(!write_mode)
     prepare_write();
-
   if(pixel_double) {
     cur_scanline = 0;
     upd_frame_buffer = frame_buffer;
     dma_channel_set_trans_count(dma_channel, win_w / 4, false);
   } else
     dma_channel_set_trans_count(dma_channel, win_w * win_h, false);
-
   dma_channel_set_read_addr(dma_channel, frame_buffer, true);
 }
 
-static void set_backlight(uint8_t brightness) {
-#ifdef LCD_BACKLIGHT_PIN
-  // gamma correct the provided 0-255 brightness value onto a
-  // 0-65535 range for the pwm counter
-  float gamma = 2.8;
-  uint16_t value = (uint16_t)(pow((float)(brightness) / 255.0f, gamma) * 65535.0f + 0.5f);
-  pwm_set_gpio_level(LCD_BACKLIGHT_PIN, value);
-#endif
+static void prepare_write() {
+  pio_wait(pio, pio_sm);
+  uint8_t r = MIPIDCS::WriteMemoryStart;
+  gpio_put(LCD_CS_PIN, 0);
+  gpio_put(LCD_DC_PIN, 0);
+  pio_put_byte(pio, pio_sm, r);
+  pio_wait(pio, pio_sm);
+  gpio_put(LCD_DC_PIN, 1);
+  pio_sm_set_enabled(pio, pio_sm, false);
+  pio_sm_restart(pio, pio_sm);
+  if(pixel_double) {
+    pio_sm_set_wrap(pio, pio_sm, pio_double_offset + dbi_pixel_double_wrap_target, pio_double_offset + dbi_pixel_double_wrap);
+    pio->sm[pio_sm].shiftctrl &= ~(PIO_SM0_SHIFTCTRL_PULL_THRESH_BITS | PIO_SM0_SHIFTCTRL_AUTOPULL_BITS);
+    pio_sm_exec(pio, pio_sm, pio_encode_jmp(pio_double_offset));
+    dma_channel_hw_addr(dma_channel)->al1_ctrl &= ~DMA_CH0_CTRL_TRIG_DATA_SIZE_BITS;
+    dma_channel_hw_addr(dma_channel)->al1_ctrl |= DMA_SIZE_32 << DMA_CH0_CTRL_TRIG_DATA_SIZE_LSB;
+  } else {
+    pio->sm[pio_sm].shiftctrl &= ~PIO_SM0_SHIFTCTRL_PULL_THRESH_BITS;
+    pio->sm[pio_sm].shiftctrl |= (16 << PIO_SM0_SHIFTCTRL_PULL_THRESH_LSB) | PIO_SM0_SHIFTCTRL_AUTOPULL_BITS;
+    dma_channel_hw_addr(dma_channel)->al1_ctrl &= ~DMA_CH0_CTRL_TRIG_DATA_SIZE_BITS;
+    dma_channel_hw_addr(dma_channel)->al1_ctrl |= DMA_SIZE_16 << DMA_CH0_CTRL_TRIG_DATA_SIZE_LSB;
+  }
+  pio_sm_set_enabled(pio, pio_sm, true);
+  write_mode = true;
 }
 
 static void set_pixel_double(bool pd) {
   pixel_double = pd;
-
-  // nop to reconfigure PIO
-  if(write_mode)
-    command(0);
-
+  if(write_mode) command(0); // nop to reconfigure
   if(pixel_double) {
     dma_channel_acknowledge_irq0(dma_channel);
     dma_channel_set_irq0_enabled(dma_channel, true);
@@ -314,203 +214,128 @@ static void set_pixel_double(bool pd) {
     dma_channel_set_irq0_enabled(dma_channel, false);
 }
 
-static void clear() {
-  if(!write_mode)
-    prepare_write();
-
-  for(int i = 0; i < win_w * win_h; i++)
-    pio_sm_put_blocking(pio, pio_sm, 0);
-}
-
 static bool dma_is_busy() {
   if(pixel_double && cur_scanline <= win_h / 2)
     return true;
-
   return dma_channel_is_busy(dma_channel);
+}
+
+static void set_backlight(uint8_t brightness) {
+#ifdef LCD_BACKLIGHT_PIN
+  float gamma = 2.8f;
+  uint16_t value = (uint16_t)(pow((float)brightness / 255.0f, gamma) * 65535.0f + 0.5f);
+  pwm_set_gpio_level(LCD_BACKLIGHT_PIN, value);
+#endif
 }
 
 static void vsync_callback(uint gpio, uint32_t events) {
   if(!do_render && !dma_is_busy()) {
-    ::update();
+    update_transfer();
     do_render = true;
   }
 }
 
+} // namespace
+
+// Public driver interface (mirrors original dbi.cpp exports)
+
 void init_display() {
   frame_buffer = screen_fb;
-
-  // configure pins
-  gpio_set_function(LCD_DC_PIN, GPIO_FUNC_SIO);
-  gpio_set_dir(LCD_DC_PIN, GPIO_OUT);
-
-  gpio_set_function(LCD_CS_PIN, GPIO_FUNC_SIO);
-  gpio_set_dir(LCD_CS_PIN, GPIO_OUT);
-  gpio_put(LCD_CS_PIN, 1);
-
+  gpio_set_function(LCD_DC_PIN, GPIO_FUNC_SIO); gpio_set_dir(LCD_DC_PIN, GPIO_OUT);
+  gpio_set_function(LCD_CS_PIN, GPIO_FUNC_SIO); gpio_set_dir(LCD_CS_PIN, GPIO_OUT); gpio_put(LCD_CS_PIN, 1);
   bi_decl_if_func_used(bi_1pin_with_name(LCD_DC_PIN, "Display D/C"));
   bi_decl_if_func_used(bi_1pin_with_name(LCD_CS_PIN, "Display CS"));
-
-  // if supported by the display then the vsync pin is
-  // toggled high during vertical blanking period
 #ifdef LCD_VSYNC_PIN
   gpio_set_function(LCD_VSYNC_PIN, GPIO_FUNC_SIO);
   gpio_set_dir(LCD_VSYNC_PIN, GPIO_IN);
   gpio_set_pulls(LCD_VSYNC_PIN, false, true);
-
   bi_decl_if_func_used(bi_1pin_with_name(LCD_VSYNC_PIN, "Display TE/VSync"));
 #endif
-
-  // if a backlight pin is provided then set it up for
-  // pwm control
 #ifdef LCD_BACKLIGHT_PIN
   pwm_config pwm_cfg = pwm_get_default_config();
   pwm_set_wrap(pwm_gpio_to_slice_num(LCD_BACKLIGHT_PIN), 65535);
   pwm_init(pwm_gpio_to_slice_num(LCD_BACKLIGHT_PIN), &pwm_cfg, true);
   gpio_set_function(LCD_BACKLIGHT_PIN, GPIO_FUNC_PWM);
-
   bi_decl_if_func_used(bi_1pin_with_name(LCD_BACKLIGHT_PIN, "Display Backlight"));
 #endif
-
-#ifdef DBI_8BIT
-  // init RD
-  gpio_init(LCD_RD_PIN);
-  gpio_set_dir(LCD_RD_PIN, GPIO_OUT);
-  gpio_put(LCD_RD_PIN, 1);
-
-  bi_decl_if_func_used(bi_1pin_with_name(LCD_RD_PIN, "Display RD"));
-#endif
-
 #ifdef LCD_RESET_PIN
   gpio_set_function(LCD_RESET_PIN, GPIO_FUNC_SIO);
   gpio_set_dir(LCD_RESET_PIN, GPIO_OUT);
-  gpio_put(LCD_RESET_PIN, 0);
-  sleep_ms(100);
-  gpio_put(LCD_RESET_PIN, 1);
-
+  gpio_put(LCD_RESET_PIN, 0); sleep_ms(100); gpio_put(LCD_RESET_PIN, 1);
   bi_decl_if_func_used(bi_1pin_with_name(LCD_RESET_PIN, "Display Reset"));
 #endif
-
-  // setup PIO
   pio_offset = pio_add_program(pio, &dbi_raw_program);
   pio_double_offset = pio_add_program(pio, &dbi_pixel_double_program);
-
   pio_sm = pio_claim_unused_sm(pio, true);
-
   pio_sm_config cfg = dbi_raw_program_get_default_config(pio_offset);
-
-#ifdef DBI_8BIT
-  const int out_width = 8;
-#else // SPI
-  const int out_width = 1;
-#endif
-
+  const int out_width = 1; // SPI
   const int clkdiv = std::ceil(clock_get_hz(clk_sys) / float(LCD_MAX_CLOCK * 2));
   sm_config_set_clkdiv(&cfg, clkdiv);
-
   sm_config_set_out_shift(&cfg, false, true, 8);
   sm_config_set_out_pins(&cfg, LCD_MOSI_PIN, out_width);
   sm_config_set_fifo_join(&cfg, PIO_FIFO_JOIN_TX);
   sm_config_set_sideset_pins(&cfg, LCD_SCK_PIN);
-
-  // init pins
-  for(int i = 0; i < out_width; i++)
-    pio_gpio_init(pio, LCD_MOSI_PIN + i);
-
+  for(int i = 0; i < out_width; i++) pio_gpio_init(pio, LCD_MOSI_PIN + i);
   pio_gpio_init(pio, LCD_SCK_PIN);
-
   pio_sm_set_consecutive_pindirs(pio, pio_sm, LCD_MOSI_PIN, out_width, true);
   pio_sm_set_consecutive_pindirs(pio, pio_sm, LCD_SCK_PIN, 1, true);
-
   pio_sm_init(pio, pio_sm, pio_offset, &cfg);
   pio_sm_set_enabled(pio, pio_sm, true);
-
-#ifdef DBI_8BIT
-  // these are really D0/WR
-  bi_decl_if_func_used(bi_pin_mask_with_name(0xFF << LCD_MOSI_PIN, "Display Data"));
-  bi_decl_if_func_used(bi_1pin_with_name(LCD_SCK_PIN, "Display WR"));
-#else
   bi_decl_if_func_used(bi_1pin_with_name(LCD_MOSI_PIN, "Display TX"));
   bi_decl_if_func_used(bi_1pin_with_name(LCD_SCK_PIN, "Display SCK"));
-#endif
-
-  // send initialisation sequence for our standard displays based on the width and height
   send_init_sequence();
-
-  // initialise dma channel for transmitting pixel data to screen
   dma_channel = dma_claim_unused_channel(true);
   dma_channel_config config = dma_channel_get_default_config(dma_channel);
   channel_config_set_transfer_data_size(&config, DMA_SIZE_16);
   channel_config_set_dreq(&config, pio_get_dreq(pio, pio_sm, true));
-  dma_channel_configure(
-    dma_channel, &config, &pio->txf[pio_sm], frame_buffer, DISPLAY_WIDTH * DISPLAY_HEIGHT, false);
-
+  dma_channel_configure(dma_channel, &config, &pio->txf[pio_sm], frame_buffer, DISPLAY_WIDTH * DISPLAY_HEIGHT, false);
   irq_add_shared_handler(DMA_IRQ_0, dbi_dma_irq_handler, PICO_SHARED_IRQ_HANDLER_DEFAULT_ORDER_PRIORITY);
   irq_set_enabled(DMA_IRQ_0, true);
-
-  clear();
-
+  // Clear screen (black)
+  // Prepare write and push zeros
+  {
+    // minimal clear
+    pio_wait(pio, pio_sm);
+    prepare_write();
+    for(int i = 0; i < DISPLAY_WIDTH * DISPLAY_HEIGHT; i++)
+      pio_sm_put_blocking(pio, pio_sm, 0);
+  }
 #ifdef LCD_VSYNC_PIN
   gpio_set_irq_enabled_with_callback(LCD_VSYNC_PIN, GPIO_IRQ_EDGE_RISE, true, vsync_callback);
-  have_vsync =  true;
+  have_vsync = true;
 #endif
 }
 
 void update_display(uint32_t time) {
-  if((do_render || (!have_vsync && time - last_render >= 20)) && (fb_double_buffer || !dma_is_busy())) {
+  if((do_render || (!have_vsync && time - last_render >= 20))) {
     if(fb_double_buffer) {
       buf_index ^= 1;
-
       screen.data = (uint8_t *)screen_fb + (buf_index) * get_display_page_size();
       frame_buffer = (uint16_t *)screen.data;
     }
-
-    ::render(time);
-
+    render(time);
     if(!have_vsync) {
-      while(dma_is_busy()) {} // may need to wait for lores.
-      ::update();
+      while(dma_is_busy()) {}
+      update_transfer();
     }
-
-    if(last_render && !backlight_enabled) {
-      // the first render should have made it to the screen at this point
-      set_backlight(255);
-      backlight_enabled = true;
-    }
-
-    last_render = time;
-    do_render = false;
+    if(last_render && !backlight_enabled) { set_backlight(255); backlight_enabled = true; }
+    last_render = time; do_render = false;
   }
 }
 
-void init_display_core1() {
-}
+void init_display_core1() {}
+void update_display_core1() {}
 
-void update_display_core1() {
-}
-
-bool display_render_needed() {
-  return do_render;
-}
+bool display_render_needed() { return do_render; }
 
 bool display_mode_supported(blit::ScreenMode new_mode, const blit::SurfaceTemplate &new_surf_template) {
-  if(new_surf_template.format != blit::PixelFormat::RGB565)
-    return false;
-
-  // allow any size that will fit
+  if(new_surf_template.format != blit::PixelFormat::RGB565) return false;
   blit::Size expected_bounds(DISPLAY_WIDTH, DISPLAY_HEIGHT);
-
-  if(new_surf_template.bounds.w <= expected_bounds.w && new_surf_template.bounds.h <= expected_bounds.h)
-    return true;
-
-  return false;
+  return new_surf_template.bounds.w <= expected_bounds.w && new_surf_template.bounds.h <= expected_bounds.h;
 }
 
 void display_mode_changed(blit::ScreenMode new_mode, blit::SurfaceTemplate &new_surf_template) {
-  if(have_vsync)
-    do_render = true; // prevent starting an update during switch
-
+  if(have_vsync) do_render = true;
   set_pixel_double(new_mode == ScreenMode::lores);
-
-  if(new_mode == ScreenMode::hires)
-    frame_buffer = screen_fb;
+  if(new_mode == ScreenMode::hires) frame_buffer = screen_fb;
 }
