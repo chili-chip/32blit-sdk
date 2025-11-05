@@ -55,11 +55,6 @@ enum SSD1351 : uint8_t {
     START_SCROLL      = 0x9F, ///< Not currently used
 };
 
-//rotation
-#ifndef LCD_ROTATION
-#define LCD_ROTATION 0
-#endif
-
 static uint8_t rotation = LCD_ROTATION;
 
 // double buffering for lores
@@ -163,7 +158,9 @@ static void set_window(uint16_t x1, uint16_t y1, uint16_t w, uint16_t h) {
   uint8_t rows[2] = { static_cast<uint8_t>(y1 & 0xFF), static_cast<uint8_t>(y2 & 0xFF) };
   command(SSD1351::SET_COLUMN, 2, reinterpret_cast<const char *>(cols));
   command(SSD1351::SET_ROW, 2, reinterpret_cast<const char *>(rows));
-  command(SSD1351::WRITE_RAM);
+
+  win_w = w;
+  win_h = h;
 }
 
 void set_rotation(uint8_t r) {
@@ -175,7 +172,7 @@ void set_rotation(uint8_t r) {
   // 2   Color remap (0: A->B->C, 1: C->B->A)
   // 1   Column remap (0: 0-127, 1: 127-0)
   // 0   Address increment (0: horizontal, 1: vertical)
-  uint8_t madctl = 0b01100100; // 64K, enable split, CBA
+  uint8_t madctl = 0b01100000; // 64K, enable split, ABC
 
   rotation = r & 3; // Clip input to valid range
 
@@ -203,9 +200,24 @@ void set_rotation(uint8_t r) {
   }
 
   command(SSD1351::SET_REMAP, 1, reinterpret_cast<const char *>(&madctl));
-  // Start line must be within 0..127 for 128x128; use 0 to avoid wrap issues
-  uint8_t startline = 0;
+  uint8_t startline = (rotation < 2) ? DISPLAY_HEIGHT-1 : 0;
   command(SSD1351::START_LINE, 1, reinterpret_cast<const char *>(&startline));
+}
+
+void enable_display(bool enable) {
+  if(enable) {
+    command(SSD1351::DISPLAY_ON);
+  } else {
+    command(SSD1351::DISPLAY_OFF);
+  }
+}
+
+void invert_display(bool i) {
+  if(i) {
+    command(SSD1351::INVERT_DISPLAY);
+  } else {
+    command(SSD1351::NORMAL_DISPLAY);
+  }
 }
 
 static void send_init_sequence() {
@@ -229,7 +241,9 @@ static void send_init_sequence() {
   command(SSD1351::PRECHARGE_2, 1, "\x01");         // PRECHARGE2
   command(SSD1351::DISPLAY_ON);                    // DISPLAYON
 
-  set_rotation(0);
+  set_rotation(rotation);
+
+  invert_display(false);
 
   // finalize window
   set_window(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT);
@@ -461,20 +475,4 @@ void display_mode_changed(blit::ScreenMode new_mode, blit::SurfaceTemplate &new_
 
   if(new_mode == ScreenMode::hires)
     frame_buffer = screen_fb;
-}
-
-void enable_display(bool enable) {
-  if(enable) {
-    command(SSD1351::DISPLAY_ON);
-  } else {
-    command(SSD1351::DISPLAY_OFF);
-  }
-}
-
-void invert_display(bool i) {
-  if(i) {
-    command(SSD1351::INVERT_DISPLAY);
-  } else {
-    command(SSD1351::NORMAL_DISPLAY);
-  }
 }
