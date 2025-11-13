@@ -1,7 +1,9 @@
 #pragma once
 
+#define PICO_RP2350 1
+
 // D-pad buttons
-#define BUTTON_LEFT_PIN  2
+#define BUTTON_LEFT_PIN  22
 #define BUTTON_RIGHT_PIN 3
 #define BUTTON_UP_PIN    4
 #define BUTTON_DOWN_PIN  5
@@ -25,8 +27,8 @@
 #define LCD_DC_PIN 14
 #define LCD_RESET_PIN 15
 
-#define LCD_ROTATION 0
-#define LCD_MAX_CLOCK 12000000
+#define LCD_ROTATION 2
+#define LCD_MAX_CLOCK 8000000
 
 // #define LED_INVERTED
 // #define LED_R_PIN 6
