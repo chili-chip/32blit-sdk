@@ -24,30 +24,30 @@
 
 // --- I2C ---
 #ifndef PICO_DEFAULT_I2C
-#define PICO_DEFAULT_I2C 0
+#define PICO_DEFAULT_I2C 1
 #endif
 #ifndef PICO_DEFAULT_I2C_SDA_PIN
-#define PICO_DEFAULT_I2C_SDA_PIN 4
+#define PICO_DEFAULT_I2C_SDA_PIN 14
 #endif
 #ifndef PICO_DEFAULT_I2C_SCL_PIN
-#define PICO_DEFAULT_I2C_SCL_PIN 5
+#define PICO_DEFAULT_I2C_SCL_PIN 15
 #endif
 
 // --- SPI ---
 #ifndef PICO_DEFAULT_SPI
-#define PICO_DEFAULT_SPI 1
+#define PICO_DEFAULT_SPI 0
 #endif
 #ifndef PICO_DEFAULT_SPI_SCK_PIN
-#define PICO_DEFAULT_SPI_SCK_PIN 10
+#define PICO_DEFAULT_SPI_SCK_PIN 18
 #endif
 #ifndef PICO_DEFAULT_SPI_TX_PIN
-#define PICO_DEFAULT_SPI_TX_PIN 11
+#define PICO_DEFAULT_SPI_TX_PIN 19
 #endif
 #ifndef PICO_DEFAULT_SPI_RX_PIN
-#define PICO_DEFAULT_SPI_RX_PIN 12
+#define PICO_DEFAULT_SPI_RX_PIN 16
 #endif
 #ifndef PICO_DEFAULT_SPI_CSN_PIN
-#define PICO_DEFAULT_SPI_CSN_PIN 13
+#define PICO_DEFAULT_SPI_CSN_PIN 17
 #endif
 
 // Include the base Pico 2 board definition
