@@ -7,11 +7,7 @@
 #include "pico/binary_info.h"
 #include "pico/time.h"
 #include "config.h"
-#include "dbi-spi.pio.h" // assuming SPI; adapt if 8-bit variant needed
-
-// This driver provides ST7735S-specific init while reusing the common dbi implementation pattern.
-// It is derived from the original combined dbi.cpp but isolates the ST7735S path so the generic
-// dbi driver can focus on ST7789 (and related) panels.
+#include "dbi-spi.pio.h"
 
 using namespace blit;
 
