@@ -26,14 +26,14 @@ jobs:
             cache-key: linux
             release-suffix: LIN64
             cmake-args: '"-DCMAKE_CXX_CLANG_TIDY=clang-tidy;-header-filter=(32blit|32blit-sdl)/;-checks=performance-*,portability-*,modernize-*,-modernize-use-trailing-return-type,-modernize-avoid-c-arrays,-modernize-use-nodiscard" -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache'
-            apt-packages: ccache clang-tidy libsdl2-dev libsdl2-image-dev libsdl2-net-dev pipx python3-requests
+            apt-packages: ccache clang-tidy libsdl2-dev libsdl2-image-dev libsdl2-net-dev
 
           - os: ubuntu-22.04
             name: STM32
             cache-key: stm32
             release-suffix: STM32
             cmake-args: -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/32blit.toolchain -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
-            apt-packages: ccache gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib pipx python3-requests
+            apt-packages: ccache gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib
 
           - os: ubuntu-22.04
             pico-sdk: true
@@ -41,7 +41,15 @@ jobs:
             cache-key: picosystem
             release-suffix: PicoSystem
             cmake-args: -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/pico.toolchain -DPICO_SDK_PATH=$GITHUB_WORKSPACE/pico-sdk -DPICO_BOARD=pimoroni_picosystem -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
-            apt-packages: ccache gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib pipx python3-requests
+            apt-packages: ccache gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib
+
+          - os: ubuntu-22.04
+            pico-sdk: true
+            name: PicoSystem (.blit)
+            cache-key: picosystem-bl
+            release-suffix: PicoSystem-blit
+            cmake-args: -D32BLIT_DIR=$GITHUB_WORKSPACE -DPICO_SDK_PATH=$GITHUB_WORKSPACE/pico-sdk -DPICO_BOARD=pimoroni_picosystem -DBLIT_EXECUTABLE_PICO_BLIT=1 -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+            apt-packages: ccache gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib python3-setuptools
 
           - os: ubuntu-22.04
             pico-sdk: true
@@ -49,14 +57,22 @@ jobs:
             cache-key: picovision
             release-suffix: PicoVision
             cmake-args: -D32BLIT_DIR=$GITHUB_WORKSPACE -DPICO_SDK_PATH=$GITHUB_WORKSPACE/pico-sdk -DPICO_BOARD=pimoroni_picovision -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
-            apt-packages: ccache gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib pipx python3-requests
+            apt-packages: ccache gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib
+
+          - os: ubuntu-22.04
+            pico-sdk: true
+            name: Tufty 2350 (.blit)
+            cache-key: tufty2350-bl
+            release-suffix: Tufty2350-blit
+            cmake-args: -D32BLIT_DIR=$GITHUB_WORKSPACE -DPICO_SDK_PATH=$GITHUB_WORKSPACE/pico-sdk -DPICO_BOARD=pimoroni_tufty2350 -DBLIT_EXECUTABLE_PICO_BLIT=1 -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+            apt-packages: ccache gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib python3-setuptools
 
           - os: ubuntu-22.04
             name: MinGW
             cache-key: mingw
             artifact-suffix: MinGW
             cmake-args: -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/mingw.toolchain -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DSDL2_DIR=$GITHUB_WORKSPACE/SDL2/cmake -DSDL2_image_DIR=$GITHUB_WORKSPACE/SDL2_image/cmake -DSDL2_net_DIR=$GITHUB_WORKSPACE/SDL2_net/cmake
-            apt-packages: ccache g++-mingw-w64 pipx python3-requests
+            apt-packages: ccache g++-mingw-w64
 
           - os: ubuntu-22.04
             pico-sdk: true
@@ -66,7 +82,7 @@ jobs:
             cmake-args: -D32BLIT_DIR=$GITHUB_WORKSPACE -DPICO_SDK_PATH=$GITHUB_WORKSPACE/pico-sdk -DPICO_BOARD=chilichip_vgc -DPICO_PLATFORM=rp2350-arm-s -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/32blit-sdk/pico2.toolchain -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
             apt-packages: ccache gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib pipx python3-requests
 
-          - os: macos-13
+          - os: macos-14
             name: macOS
             cache-key: macos
             artifact-suffix: macOS
@@ -134,7 +150,6 @@ jobs:
       if: runner.os == 'Linux'
       run: |
         sudo apt update && sudo apt install ${{matrix.apt-packages}}
-        pipx install 32blit
 
     # macOS deps
     - name: Install deps
@@ -143,7 +158,6 @@ jobs:
         ci/install_sdl_macos.sh
         brew install ccache
         echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
-        python3 -m pip install 32blit requests
 
     # Windows (VS) deps
     - name: Install deps
@@ -155,6 +169,16 @@ jobs:
     - name: MinGW deps
       if: matrix.name == 'MinGW'
       run: ci/install_sdl_mingw.sh
+
+    - name: Install Python Dependencies
+      if: runner.os != 'Windows'
+      shell: bash
+      run: |
+        python -m venv .venv
+        source .venv/bin/activate
+        python -m pip install 32blit requests
+        echo "$VIRTUAL_ENV/bin" >> $GITHUB_PATH
+        echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> $GITHUB_ENV
 
     - name: Create Build Environment
       run: |
