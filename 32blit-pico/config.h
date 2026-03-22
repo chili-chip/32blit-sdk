@@ -164,24 +164,6 @@
 #define DISPLAY_HEIGHT 240
 #endif
 
-#if ALLOW_HIRES && DOUBLE_BUFFERED_HIRES
-#define FRAMEBUFFER_SIZE (DISPLAY_WIDTH * DISPLAY_HEIGHT * 2)
-#elif ALLOW_HIRES
-#define FRAMEBUFFER_SIZE (DISPLAY_WIDTH * DISPLAY_HEIGHT)
-#else
-// height rounded up to handle the 135px display
-#define FRAMEBUFFER_SIZE ((DISPLAY_WIDTH / 2) * ((DISPLAY_HEIGHT + 1) / 2) * 2) // double-buffered
-#endif
-
-// default flash storage to last 1/4 of flash
-#ifndef FLASH_STORAGE_SIZE
-#define FLASH_STORAGE_SIZE PICO_FLASH_SIZE_BYTES / 4
-#endif
-
-#ifndef FLASH_STORAGE_OFFSET
-#define FLASH_STORAGE_OFFSET PICO_FLASH_SIZE_BYTES - FLASH_STORAGE_SIZE
-#endif
-
 #ifndef LCD_CS_PIN
 #define LCD_CS_PIN PICO_DEFAULT_SPI_CSN_PIN
 #endif
@@ -208,10 +190,6 @@
 
 #ifndef LCD_MAX_CLOCK
 #define LCD_MAX_CLOCK 62500000
-#endif
-
-#ifndef LCD_TRANSPOSE
-#define LCD_TRANSPOSE 0
 #endif
 
 #ifndef OVERCLOCK_250

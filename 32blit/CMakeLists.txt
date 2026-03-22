@@ -1,7 +1,6 @@
 set(SOURCES
 	audio/audio.cpp
 	audio/mp3-stream.cpp
-	audio/wav-stream.cpp
 	engine/engine.cpp
 	engine/file.cpp
 	engine/api.cpp

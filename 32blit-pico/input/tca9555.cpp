@@ -30,26 +30,18 @@
 #define TCA9555_START_IO  11
 #define TCA9555_SELECT_IO 5
 
-static bool tca9555_found = false;
-
-void init_tca9555() {
+void init_input() {
   // setup for reading
   uint8_t port = 0;
-  tca9555_found = i2c_write_timeout_us(TCA9555_I2C, TCA9555_ADDR, &port, 1, false, 1000) == 1;
+  i2c_write_blocking(TCA9555_I2C, TCA9555_ADDR, &port, 1, true);
 }
 
-void update_tca9555(uint32_t &new_buttons, blit::Vec2 &new_joystick) {
-  if(!tca9555_found)
-    return;
+void update_input() {
+  uint16_t gpio = 0;
 
-  uint16_t gpio = 0xFFFF;
+  i2c_read_blocking(TCA9555_I2C, TCA9555_ADDR, (uint8_t *)&gpio, 2, false);
 
-  if(i2c_read_blocking(TCA9555_I2C, TCA9555_ADDR, (uint8_t *)&gpio, 2, false) != 2) {
-    // attempt to reset the address if read fails
-    uint8_t port = 0;
-    i2c_write_timeout_us(TCA9555_I2C, TCA9555_ADDR, &port, 1, false, 1000);
-    return; // will try again next time
-  }
+  uint32_t new_buttons = 0;
 
   if(!(gpio & (1 << TCA9555_LEFT_IO)))
     new_buttons |= blit::Button::DPAD_LEFT;
@@ -80,8 +72,6 @@ void update_tca9555(uint32_t &new_buttons, blit::Vec2 &new_joystick) {
 
   if(!(gpio & (1 << TCA9555_SELECT_IO)))
     new_buttons |= blit::Button::MENU;
-}
 
-extern const InputDriver tca9555_driver {
-  init_tca9555, update_tca9555
-};
+  blit::api_data.buttons = new_buttons;
+}

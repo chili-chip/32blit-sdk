@@ -178,8 +178,6 @@ void init_usb() {
 void update_usb() {
   tuh_task();
 
-  usb_cdc_update();
-
   // TODO: resend multiplayer handshake
 }
 

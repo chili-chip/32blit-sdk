@@ -21,8 +21,8 @@ static constexpr int button_io[] {
   BUTTON_X_PIN,
   BUTTON_Y_PIN,
 
-  BUTTON_MENU_PIN,
   BUTTON_HOME_PIN,
+  BUTTON_MENU_PIN,
   BUTTON_JOYSTICK_PIN,
 };
 
@@ -37,8 +37,8 @@ static constexpr bool button_active[] {
   BUTTON_X_ACTIVE_HIGH,
   BUTTON_Y_ACTIVE_HIGH,
 
-  BUTTON_MENU_ACTIVE_HIGH,
   BUTTON_HOME_ACTIVE_HIGH,
+  BUTTON_MENU_ACTIVE_HIGH,
   BUTTON_JOYSTICK_ACTIVE_HIGH,
 };
 
@@ -52,7 +52,7 @@ static void init_button(int pin, bool active_high) {
     gpio_pull_up(pin);
 }
 
-void init_gpio_input() {
+void init_input() {
   for(size_t i = 0; i < std::size(button_io); i++)
     init_button(button_io[i], button_active[i]);
 
@@ -72,21 +72,21 @@ void init_gpio_input() {
   #undef BUTTON_BI_DECL
 }
 
-void update_gpio_input(uint32_t &new_buttons, blit::Vec2 &new_joystick) {
+void update_input() {
   auto io = gpio_get_all();
+
+  uint32_t new_buttons = 0;
 
   for(size_t i = 0; i < std::size(button_io); i++) {
     // pin not defined, skip
     if(button_io[i] == -1)
       continue;
-
+    
     bool pin_state = !!(io & (1 << button_io[i]));
 
     if(pin_state == button_active[i])
       new_buttons |= 1 << i;
   }
-}
 
-extern const InputDriver gpio_input_driver {
-  init_gpio_input, update_gpio_input
-};
+  blit::api_data.buttons = new_buttons;
+}

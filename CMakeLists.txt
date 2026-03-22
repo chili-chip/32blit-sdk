@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.15...3.31)
+cmake_minimum_required(VERSION 3.9...3.26)
 
 # has to be before project
 include(32blit-pico/sdk_import.cmake)
@@ -12,21 +12,19 @@ else()
 endif()
 
 find_package (32BLIT CONFIG REQUIRED PATHS .)
+add_subdirectory(utilities)
 
 add_subdirectory(launcher-shared)
-
-add_subdirectory(utilities)
 
 if(32BLIT_HW)
     add_subdirectory(32blit-stm32)
     add_subdirectory(32blit-stm32/firmware)
     add_subdirectory(32blit-stm32/firmware-update)
-elseif(32BLIT_PICO)
-    add_subdirectory(32blit-pico)
-    add_subdirectory(32blit-pico/loader)
 endif()
 
-add_subdirectory(launcher)
+if(NOT 32BLIT_PICO)
+    add_subdirectory(launcher)
+endif()
 
 # if the examples are there, build them too
 if(EXISTS ${CMAKE_CURRENT_LIST_DIR}/examples/CMakeLists.txt)
