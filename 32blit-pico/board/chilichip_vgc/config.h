@@ -22,6 +22,8 @@
 #define PICO_AUDIO_PWM_MONO_PIN 22
 #define PICO_AUDIO_PWM_PIO 0
 
+#define LED_PIN 16
+
 #define LCD_SCK_PIN 18
 #define LCD_MOSI_PIN 19
 // #define LCD_BACKLIGHT_PIN 12
