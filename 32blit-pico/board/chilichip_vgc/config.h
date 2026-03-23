@@ -9,10 +9,10 @@
 #define BUTTON_DOWN_PIN  8
 
 // Action buttons
-#define BUTTON_A_PIN 6
-#define BUTTON_B_PIN 4
-#define BUTTON_X_PIN 5
-#define BUTTON_Y_PIN 3
+#define BUTTON_A_PIN 3
+#define BUTTON_B_PIN 5
+#define BUTTON_X_PIN 6
+#define BUTTON_Y_PIN 4
 #define BUTTON_MENU_PIN 11
 #define BUTTON_HOME_PIN 2
 
