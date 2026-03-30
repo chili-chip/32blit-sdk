@@ -32,7 +32,7 @@
 #define LCD_RESET_PIN 20
 
 #define LCD_ROTATION 2
-#define LCD_MAX_CLOCK 8000000
+#define LCD_MAX_CLOCK 30000000
 
 // #define LED_INVERTED
 // #define LED_R_PIN 6

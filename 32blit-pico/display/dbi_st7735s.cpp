@@ -303,7 +303,7 @@ void init_display() {
 }
 
 void update_display(uint32_t time) {
-  if((do_render || (!have_vsync && time - last_render >= 20))) {
+  if((do_render || (!have_vsync && time - last_render >= 20)) && (fb_double_buffer || !dma_is_busy())) {
     if(fb_double_buffer) {
       buf_index ^= 1;
       screen.data = (uint8_t *)screen_fb + (buf_index) * get_display_page_size();
