@@ -32,7 +32,11 @@
 #define LCD_RESET_PIN 20
 
 #define LCD_ROTATION 2
-#define LCD_MAX_CLOCK 8000000
+// SSD1351 serial-write cycle is 50 ns (20 MHz) at typical 3.3 V I/O.
+// PIO SCK = clk_sys / (clkdiv * 2) and is clamped to this cap.
+// 8 MHz left a 128×128 RGB565 frame on the wire for ~33 ms (~30 FPS hard
+// ceiling before any game work). 20 MHz drops that to ~13 ms.
+#define LCD_MAX_CLOCK 20000000
 
 // #define LED_INVERTED
 // #define LED_R_PIN 6
