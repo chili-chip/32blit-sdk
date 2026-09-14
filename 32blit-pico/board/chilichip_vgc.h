@@ -50,6 +50,16 @@
 #define PICO_DEFAULT_SPI_CSN_PIN 17
 #endif
 
+// Core 1 only runs the PWM mix loop; keep it in scratch X (4 KiB).
+// Must be set before PICO_STACK_SIZE or pico_multicore copies the 32 KiB value.
+#ifndef PICO_CORE1_STACK_SIZE
+#define PICO_CORE1_STACK_SIZE 0x800
+#endif
+// Core 0 parses C++ (exceptions + Room tiles). Default 2 KiB scratch Y overflows.
+#ifndef PICO_STACK_SIZE
+#define PICO_STACK_SIZE 0x8000
+#endif
+
 // Include the base Pico 2 board definition
 #include "boards/pico2.h"
 

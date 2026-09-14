@@ -66,6 +66,10 @@ function(blit_executable NAME)
         target_compile_definitions(${NAME} PRIVATE BLIT_PICO_STANDALONE=1 PICO_EMBED_XIP_SETUP=1)
         target_link_libraries(${NAME} BlitHalPico)
 
+        if(BLIT_LINKER_SCRIPT)
+            pico_set_linker_script(${NAME} ${BLIT_LINKER_SCRIPT})
+        endif()
+
         pico_add_extra_outputs(${NAME})
 
         install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${NAME}.uf2

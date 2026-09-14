@@ -95,12 +95,14 @@ namespace blit {
         adsr_frame = 0;
 		    adsr_phase = ADSRPhase::ATTACK;
         adsr_end_frame = (attack_ms * sample_rate) / 1000;
+        if(adsr_end_frame == 0) adsr_end_frame = 1;
 		    adsr_step = (int32_t(0xffffff) - int32_t(adsr)) / int32_t(adsr_end_frame);
 	    }
 	    void trigger_decay() {
         adsr_frame = 0;
 		    adsr_phase = ADSRPhase::DECAY;
         adsr_end_frame = (decay_ms * sample_rate) / 1000;
+        if(adsr_end_frame == 0) adsr_end_frame = 1;
 		    adsr_step = (int32_t(sustain << 8) - int32_t(adsr)) / int32_t(adsr_end_frame);
 	    }
       void trigger_sustain() {
@@ -118,6 +120,7 @@ namespace blit {
         adsr_frame = 0;
 		    adsr_phase = ADSRPhase::RELEASE;
         adsr_end_frame = (release_ms * sample_rate) / 1000;
+        if(adsr_end_frame == 0) adsr_end_frame = 1;
 		    adsr_step = (int32_t(0) - int32_t(adsr)) / int32_t(adsr_end_frame);
 	    }
       void off() {

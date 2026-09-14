@@ -1,91 +1,72 @@
+// Hardware PWM audio DAC (not the PicoSystem beep driver, not pico-extras PIO PWM).
+//
+// Core 1 writes PWM duty at 22050 Hz from blit::get_audio_frame(). The whole
+// hot path (this function + the mixer) must run from RAM: a flash-resident
+// mix loop starves core 0 of XIP and freezes the console when a game loads.
+
 #include "audio.hpp"
 #include "config.h"
 
-#include "pico/audio_pwm.h"
-#include "hardware/clocks.h"
-#include "hardware/dma.h"
-#include "hardware/pio.h"
-
-#define AUDIO_SAMPLE_FREQ 22050
+#include "hardware/gpio.h"
+#include "hardware/pwm.h"
+#include "pico/platform.h"
+#include "pico/time.h"
 
 #include "audio/audio.hpp"
 
-#define audio_pio __CONCAT(pio, PICO_AUDIO_PWM_PIO)
+#ifndef PICO_AUDIO_PWM_MONO_PIN
+#error "PICO_AUDIO_PWM_MONO_PIN must be defined for the PWM audio driver"
+#endif
 
-static audio_buffer_pool *audio_pool = nullptr;
+#define AUDIO_SAMPLE_FREQ 22050
+#define PWM_WRAP 255u
 
-static struct audio_buffer *cur_buffer = nullptr;
+static uint audio_pin;
+static uint32_t sample_us;
+static uint32_t next_sample_us;
 
 void init_audio() {
-  static audio_format_t audio_format = {
-    .sample_freq = AUDIO_SAMPLE_FREQ,
-    .format = AUDIO_BUFFER_FORMAT_PCM_S16,
-    .channel_count = 1
-  };
+  audio_pin = PICO_AUDIO_PWM_MONO_PIN;
+  const uint slice = pwm_gpio_to_slice_num(audio_pin);
 
-  static struct audio_buffer_format producer_format = {
-    .format = &audio_format,
-    .sample_stride = 2
-  };
+#ifdef AUDIO_ENABLE_PIN
+  gpio_init(AUDIO_ENABLE_PIN);
+  gpio_set_dir(AUDIO_ENABLE_PIN, GPIO_OUT);
+#ifdef AUDIO_ENABLE_ACTIVE_LOW
+  gpio_put(AUDIO_ENABLE_PIN, 0);
+#else
+  gpio_put(AUDIO_ENABLE_PIN, 1);
+#endif
+#endif
 
-  struct audio_buffer_pool *producer_pool = audio_new_producer_pool(&producer_format, 4, 441);
-  const struct audio_format *output_format;
+  gpio_set_function(audio_pin, GPIO_FUNC_PWM);
+  gpio_set_drive_strength(audio_pin, GPIO_DRIVE_STRENGTH_12MA);
+  gpio_set_slew_rate(audio_pin, GPIO_SLEW_RATE_FAST);
 
-  uint8_t dma_channel = dma_claim_unused_channel(true);
-  uint8_t pio_sm = pio_claim_unused_sm(audio_pio, true);
+  pwm_config cfg = pwm_get_default_config();
+  pwm_config_set_clkdiv(&cfg, 1.f);
+  pwm_config_set_wrap(&cfg, PWM_WRAP);
+  pwm_init(slice, &cfg, true);
+  pwm_set_gpio_level(audio_pin, (PWM_WRAP + 1) / 2);
 
-  // audio_i2s_setup claims
-  dma_channel_unclaim(dma_channel);
-  pio_sm_unclaim(audio_pio, pio_sm);
-
-  struct audio_pwm_channel_config audio_pwm_config = {
-    .core = {
-      .base_pin = PICO_AUDIO_PWM_MONO_PIN,
-      .dma_channel = dma_channel,
-      .pio_sm = pio_sm,
-    },
-    .pattern = 3,
-  };
-  output_format = audio_pwm_setup(&audio_format, -1, &audio_pwm_config);
-  if (!output_format) {
-      panic("PicoAudio: Unable to open audio device.\n");
-  }
-
-  // PWM PIO program assumes 48MHz
-  pio_sm_set_clkdiv(audio_pio, pio_sm, clock_get_hz(clk_sys) / 48000000.0f);
-
-  [[maybe_unused]] bool ok = audio_pwm_default_connect(producer_pool, false);
-  assert(ok);
-  audio_pwm_set_enabled(true);
-  gpio_set_drive_strength(PICO_AUDIO_PWM_MONO_PIN, GPIO_DRIVE_STRENGTH_4MA);
-  gpio_set_slew_rate(PICO_AUDIO_PWM_MONO_PIN, GPIO_SLEW_RATE_FAST);
-
-  audio_pool = producer_pool;
+  sample_us = 1000000u / AUDIO_SAMPLE_FREQ;
+  next_sample_us = time_us_32();
 }
 
-void update_audio(uint32_t time) {
-  // attempt to get new buffer
-  if(!cur_buffer) {
-    cur_buffer = take_audio_buffer(audio_pool, false);
-    if(cur_buffer)
-      cur_buffer->sample_count = 0;
-  }
+void __not_in_flash_func(update_audio)(uint32_t time) {
+  (void)time;
 
-  if(cur_buffer) {
-    auto samples = ((int16_t *)cur_buffer->buffer->bytes) + cur_buffer->sample_count;
+  const uint32_t now = time_us_32();
+  const int32_t delta = (int32_t)(now - next_sample_us);
+  if(delta < 0)
+    return;
 
-    auto max_samples = cur_buffer->max_sample_count - cur_buffer->sample_count;
+  // After flash lockout / a long stall, skip the backlog.
+  if(delta > 2000)
+    next_sample_us = now;
 
-    for(uint32_t i = 0; i < max_samples; i++) {
-      int val = (int)blit::get_audio_frame() - 0x8000;
-      *samples++ = val;
-    }
-
-    cur_buffer->sample_count += max_samples;
-
-    if(cur_buffer->sample_count == cur_buffer->max_sample_count) {
-      give_audio_buffer(audio_pool, cur_buffer);
-      cur_buffer = nullptr;
-    }
-  }
+  const uint16_t sample = blit::get_audio_frame();
+  pwm_set_gpio_level(audio_pin, static_cast<uint16_t>(
+    (static_cast<uint32_t>(sample) * PWM_WRAP) / 0xffffu));
+  next_sample_us += sample_us;
 }
