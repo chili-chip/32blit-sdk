@@ -241,6 +241,16 @@ static void check_home_button() {
 bool core1_started = false;
 
 #ifdef ENABLE_CORE1
+// MUST be noinline: if this is inlined into core1_main the mix loop lives in
+// XIP, core 1 hammers flash, and starting a game HardFaults core 0.
+[[gnu::noinline, gnu::noreturn]]
+static void __not_in_flash_func(core1_audio_loop)() {
+  while(true) {
+    update_audio(0);
+    tight_loop_contents();
+  }
+}
+
 void core1_main() {
   core1_started = true;
   multicore_lockout_victim_init();
@@ -248,11 +258,7 @@ void core1_main() {
   init_display_core1();
   init_audio();
 
-  while(true) {
-    update_display_core1();
-    update_audio(::now());
-    sleep_us(1);
-  }
+  core1_audio_loop();
 }
 
 #else

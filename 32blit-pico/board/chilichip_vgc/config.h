@@ -19,8 +19,9 @@
 #define DISPLAY_WIDTH 128
 #define DISPLAY_HEIGHT 128
 
+// Speaker on GP22. Driven by the hardware PWM slice (audio/pwm.cpp), not PIO.
 #define PICO_AUDIO_PWM_MONO_PIN 22
-#define PICO_AUDIO_PWM_PIO 0
+// #define AUDIO_ENABLE_PIN 15  // amp / mute GPIO, driven high at audio init
 
 #define LED_PIN 16
 

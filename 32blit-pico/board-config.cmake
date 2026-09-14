@@ -57,9 +57,9 @@ if(NOT BLIT_USB_DRIVER)
 endif()
 
 # driver dependencies
+# Hardware PWM DAC (audio/pwm.cpp). Do not pull pico-extras audio_pwm.
 if(BLIT_AUDIO_DRIVER STREQUAL "pwm")
-    set(BLIT_REQUIRE_PICO_EXTRAS TRUE)
-    list(APPEND BLIT_BOARD_LIBRARIES pico_audio_pwm)
+    list(APPEND BLIT_BOARD_LIBRARIES hardware_pwm)
 endif()
 
 if(BLIT_DISPLAY_DRIVER STREQUAL "picovision")
