@@ -157,6 +157,10 @@ brightness depends on how loaded the rest of its row is. A row period is
 phase 1 + phase 2 + drive DCLKs, so the power-on periods give back about 8% of
 refresh rate, which the `0xF0` clock divider above already more than covers.
 
+`ssd1351_set_row_drive(phase_12, phase_3, precharge_level, vsl_select)` writes
+the same four registers at runtime, for sweeping values on a new panel without
+a rebuild per step.
+
 If bands remain after all of that, it is the panel supply rather than the
 driver: `VCC` and `VCOMH` sag under the extra row current. Check local
 decoupling on both and how they are routed to the FPC.

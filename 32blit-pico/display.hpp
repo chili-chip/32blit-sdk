@@ -33,6 +33,13 @@ void display_mode_changed(blit::ScreenMode new_mode, blit::SurfaceTemplate &new_
 /// the OLED without a software black veil (which cannot change PWM rate).
 void ssd1351_set_master_contrast(uint8_t level);
 
+/// Re-programs the SSD1351 registers that decide how much a row's total drive
+/// current bleeds into the rest of that row (0xB1 phase 1/2, 0xB6 phase 3,
+/// 0xBB pre-charge voltage, 0xB4 VSL source). init_display() already programs
+/// the SSD1351_* defaults from ssd1351_init_seq.hpp; this exists so a new
+/// panel can be swept on the bench without a rebuild per value.
+void ssd1351_set_row_drive(uint8_t phase_12, uint8_t phase_3, uint8_t precharge_level, uint8_t vsl_select);
+
 blit::SurfaceInfo &set_screen_mode(blit::ScreenMode mode);
 bool set_screen_mode_format(blit::ScreenMode new_mode, blit::SurfaceTemplate &new_surf_template);
 

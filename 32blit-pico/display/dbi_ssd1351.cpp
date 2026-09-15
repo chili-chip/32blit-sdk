@@ -357,6 +357,30 @@ void ssd1351_set_master_contrast(uint8_t level) {
   command(SSD1351::CONTRAST_MASTER, 1, &v);
 }
 
+void ssd1351_set_row_drive(uint8_t phase_12, uint8_t phase_3, uint8_t precharge_level, uint8_t vsl_select) {
+  if(phase_3 == 0) // 0 DCLK is invalid
+    phase_3 = 1;
+  else if(phase_3 > 15)
+    phase_3 = 15;
+
+  precharge_level &= 0x1F;
+  vsl_select = 0xA0 | (vsl_select & 0x02); // A[7:2] is fixed, A[0] must be 0
+
+  wait_for_transfer();
+
+  const char phases = static_cast<char>(phase_12);
+  command(SSD1351::PRECHARGE, 1, &phases);
+
+  const char second = static_cast<char>(phase_3);
+  command(SSD1351::PRECHARGE_2, 1, &second);
+
+  const char level = static_cast<char>(precharge_level);
+  command(SSD1351::PRECHARGE_LEVEL, 1, &level);
+
+  const char vsl[3] = {static_cast<char>(vsl_select), static_cast<char>(0xB5), 0x55};
+  command(SSD1351::SET_VSL, 3, vsl);
+}
+
 void init_display() {
   frame_buffer = screen_fb;
 
