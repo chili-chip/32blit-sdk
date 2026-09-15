@@ -47,19 +47,19 @@
 /// current. Brightness sliders remap this at runtime via
 /// ssd1351_set_master_contrast(); this is only the value programmed at init.
 ///
-/// 0x0A matches the Adafruit and micropython reference inits and draws about a
-/// third less than the 0x0F maximum, which is a third less droop on a heavily
-/// lit row. Raise it back to 0x0F for maximum brightness if the panel supply
-/// can take it.
+/// Note that turning this down does not touch the banding, which is why it is
+/// left at maximum. It scales every pixel's drive current by the same factor,
+/// so the sag and the background's own brightness come down together and the
+/// percentage dip lands where it started. That is what the compensation pass
+/// in ssd1351_row_compensation.hpp is for.
 #ifndef SSD1351_CONTRAST_MASTER
-#define SSD1351_CONTRAST_MASTER 0x0A
+#define SSD1351_CONTRAST_MASTER 0x0F
 #endif
 
 /// Command 0xC1 per-colour drive current. The fine control under the master
-/// contrast above, and the place to trim one colour: blue is the first to drop
-/// out of regulation when a row sags, so a panel that bands in hue more than
-/// in brightness wants its blue backed off here rather than everything backed
-/// off with 0xC7. ssd1351_set_contrast_abc() sweeps these at runtime.
+/// contrast above, and unlike it a way to change one colour relative to the
+/// others: blue has the highest forward voltage and so the least headroom when
+/// a row sags. ssd1351_set_contrast_abc() sweeps these at runtime.
 #ifndef SSD1351_CONTRAST_A
 #define SSD1351_CONTRAST_A 0xC8
 #endif

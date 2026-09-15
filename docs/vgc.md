@@ -115,13 +115,13 @@ The board selects `dbi_ssd1351` (`32blit-pico/board/chilichip_vgc/config.cmake`)
 | SPI clock cap | 20 MHz (`LCD_MAX_CLOCK`) |
 | Rotation | 2 (180°) |
 
-There is no backlight pin. Dim the panel with `ssd1351_set_master_contrast(0…15)` (command `0xC7`), not a software black veil. That command is also the knob for horizontal banding on rows containing bright pixels — see below.
+There is no backlight pin. Dim the panel with `ssd1351_set_master_contrast(0…15)` (command `0xC7`), not a software black veil.
 
 | Item | Behaviour |
 | ---- | --------- |
 | `0xB3` CLOCK_DIV | `0xF0` (max oscillator, ÷1) — ~2× OLED PWM refresh versus the previous `0xF1`. Override with `-DSSD1351_CLOCK_DIV=0xF1` if a panel cannot tolerate /1. |
 | Init extras | `0xB2` enhance, `0xB9` linear LUT |
-| Drive current | `0xC7` master contrast `0x0A`, `0xC1` per-colour — the knob for horizontal banding, see below |
+| Row banding | Supply droop under a lit row's current. Corrected in the frame by `SSD1351_ROW_COMPENSATION` — see below |
 | Segment waveform | `0xB1`/`0xB6` pre-charge periods, `0xBB` pre-charge voltage, `0xB4` VSL source — see below |
 | SPI | Fractional PIO clkdiv so 250 MHz sysclk actually hits **20 MHz**. Do not raise the cap to 30–40 MHz. |
 | GRAM | Re-issue column/row + `WRITE_RAM` every frame (stops rolling lines from pointer drift). |
@@ -147,44 +147,76 @@ columns away. All three strips dip by the same amount on the same rows:
 That is supply droop, not a timing or reference setting. The SSD1351 drives a
 passive matrix, so one COM is selected at a time and every lit segment in that
 row sinks its current through that one COM electrode; a mostly lit row pulls a
-far bigger current spike than a row of dark background. The segment drivers are
-*current* sources, so a sagging VCC changes nothing until the sag eats their
-compliance headroom — then they fall out of regulation, and the colour with the
-highest forward voltage goes first, which is blue. Hence the red shift.
+far bigger current spike than a row of dark background, and the panel supply
+sags under it. Every pixel in that row is then driven with less than its
+programmed current, and blue suffers most because it has the highest forward
+voltage and so the least headroom to give up — hence the red shift.
+
+The loss turns out to be proportional to the row's current rather than a
+threshold the supply either clears or does not, which the contrast sweep below
+is what establishes.
 
 **The real fix is on the board:** VCC and VCOMH decoupling at the panel, per the
 datasheet application circuit, and how both are routed to the FPC. Verify by
 scoping VCC at the panel while a bright bar is on screen; the band is the ripple
 at row rate.
 
-**The lever in firmware is drive current.** Less current, less droop, and the
-drivers stay in regulation:
+**The contrast registers cannot fix it, and that has been confirmed on the
+panel.** `0xC7` scales the drive current of every pixel by the same factor, so
+the sag and the background's own brightness come down together and the
+*percentage* dip lands exactly where it started. Stepping it from `0x0F` down
+changes the band not at all, which is both the confirmation that the droop is
+proportional and the reason `0xC7` stays at maximum here — dimming the panel
+would buy nothing. Only something that changes bright pixels relative to dark
+ones moves the band, which is what the compensation pass below does.
+
+`0xC1` per-colour current (`SSD1351_CONTRAST_A`/`_B`/`_C`, default
+`0xC8`/`0x80`/`0xC8`, and `ssd1351_set_contrast_abc()` at runtime) is the one
+contrast control that can change one colour relative to the others, so it is
+worth a try if a *hue* band remains after the compensation below. Blue has the
+highest forward voltage and so the least headroom when a row sags.
+
+#### Row-load compensation
+
+Grey scale on this controller is pulse width, not amplitude, so a pixel starved
+of current can be given the charge back as time. `SSD1351_ROW_COMPENSATION`,
+enabled for this board in `config.h`, scales every pixel in a row up in
+proportion to that row's drive current, which puts the band back flat without
+dimming anything.
 
 | Define | Default | Notes |
 | ------ | ------- | ----- |
-| `SSD1351_CONTRAST_MASTER` | `0x0A` | `0xC7` master contrast, 0–15. `0x0A` matches the Adafruit and micropython reference inits and draws about a third less than the `0x0F` maximum this board used to run. `ssd1351_set_master_contrast()` sweeps it at runtime. |
-| `SSD1351_CONTRAST_A`/`_B`/`_C` | `0xC8`/`0x80`/`0xC8` | `0xC1` per-colour current, the fine control under the master. Blue drops out first, so a panel that bands in hue more than in brightness wants blue trimmed here instead of everything trimmed with `0xC7`. `ssd1351_set_contrast_abc()` sweeps these. |
+| `SSD1351_ROW_COMPENSATION` | set for this board | Turns the pass on. Costs a 32 KiB scratch frame and one pass over the framebuffer per update. |
+| `SSD1351_ROW_COMPENSATION_R`/`_G`/`_B` | `20` | Percent gain applied to a fully lit row. `20` is what cancels the measured 8.4% dip across the whole load range. |
 
-To find the level where it goes away, bind the master contrast to a button and
-step it down over a screen with a bright bar on a dark background. Both setters
-live in the pico HAL rather than the engine, so declare them in the game:
+Tune it on the panel with `ssd1351_set_row_compensation(r, g, b)`; `0, 0, 0` is
+a pass-through, for an A/B against the uncorrected frame. Raise the numbers
+together until the band flattens, then split them if a hue band remains — the
+photo suggests red wants a few points less than green and blue, but that part
+of the measurement came through a camera's colour matrix, so it is not baked in.
 
-```cpp
-extern void ssd1351_set_master_contrast(uint8_t level);
-// ...
-if(buttons.pressed & Button::DPAD_DOWN)
-    ssd1351_set_master_contrast(--level);
-```
+Implementation notes:
 
-How it behaves as you step down says which problem you have. If the band
-disappears over a step or two, it is driver dropout and the fix is to run below
-that level (or give VCC more headroom on the board). If it fades smoothly in
-proportion to brightness, the droop is resistive and no contrast setting removes
-it — that needs the decoupling fixed, or the frame pre-compensated per row.
+* The correction at background levels is a fraction of a level, so the pass
+  carries the remainder along each row rather than rounding it away; the
+  fraction comes out as that proportion of the row's pixels moving up one
+  level. Starting remainders are staggered per row, or every row would round up
+  at the same columns and the correction would land as vertical stripes.
+* It writes a scratch frame rather than working in place, so a game that only
+  redraws part of the screen does not accumulate the correction.
+* `blit-loader` is confined to the bottom 32 KiB of RAM and has no room for the
+  scratch frame, so it runs uncorrected. Games flashed as their own `.uf2`, the
+  workflow above, are unaffected.
+* Odd rotations put the framebuffer's rows down the panel's columns, so the pass
+  skips itself rather than correcting the wrong axis.
+* The pass runs where `update()` runs, which is the main loop on this board.
+  Wiring `LCD_TE_PIN` would move `update()` into a GPIO handler, so that
+  combination is a compile error rather than a surprise.
 
-Note that the two knobs are not equivalent for a fixed brightness target:
-`0xC7` scales all three colours, while `0xC1` can buy headroom on blue alone and
-keep red and green where they are.
+`ssd1351_row_compensation_test.cpp` runs a synthetic frame through a model of
+the droop fitted to the measurement and checks the pass flattens it, that zero
+strength is a pass-through, that black stays black and white does not wrap, and
+that the correction is not landing in stripes.
 
 #### Segment waveform settings
 
