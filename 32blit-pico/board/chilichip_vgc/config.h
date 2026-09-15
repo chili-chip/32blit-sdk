@@ -37,7 +37,12 @@
 // PIO SCK = clk_sys / (clkdiv * 2) and is clamped to this cap.
 // 8 MHz left a 128×128 RGB565 frame on the wire for ~33 ms (~30 FPS hard
 // ceiling before any game work). 20 MHz drops that to ~13 ms.
+// Do not raise this to 30–40 MHz: that overclocks the panel.
 #define LCD_MAX_CLOCK 20000000
+// Waveshare 1.5" SSD1351 modules do not break out TE. Define LCD_TE_PIN
+// or LCD_VSYNC_PIN if a later board wires it; the driver then waits on
+// the rising edge before DMA, same as the ST7789 HAL.
+// #define LCD_TE_PIN 12
 
 // #define LED_INVERTED
 // #define LED_R_PIN 6

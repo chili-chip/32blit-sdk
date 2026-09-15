@@ -28,6 +28,11 @@ bool display_mode_supported(blit::ScreenMode new_mode, const blit::SurfaceTempla
 
 void display_mode_changed(blit::ScreenMode new_mode, blit::SurfaceTemplate &new_surf_template);
 
+/// SSD1351 command 0xC7 master contrast, 0–15. Implemented by the
+/// dbi_ssd1351 driver. Games can call this after init_display() to dim
+/// the OLED without a software black veil (which cannot change PWM rate).
+void ssd1351_set_master_contrast(uint8_t level);
+
 blit::SurfaceInfo &set_screen_mode(blit::ScreenMode mode);
 bool set_screen_mode_format(blit::ScreenMode new_mode, blit::SurfaceTemplate &new_surf_template);
 
