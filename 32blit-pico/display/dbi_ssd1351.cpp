@@ -1,13 +1,11 @@
-#include <cstdlib>
-#include <math.h>
-
 #include "display.hpp"
 #include "display_commands.hpp"
+#include "ssd1351_init_seq.hpp"
 
 #include "hardware/clocks.h"
 #include "hardware/dma.h"
+#include "hardware/gpio.h"
 #include "hardware/irq.h"
-#include "hardware/pwm.h"
 #include "pico/binary_info.h"
 #include "pico/time.h"
 
@@ -19,40 +17,44 @@
 #include "dbi-spi.pio.h"
 #endif
 
+#if defined(LCD_TE_PIN) && !defined(LCD_VSYNC_PIN)
+#define LCD_VSYNC_PIN LCD_TE_PIN
+#endif
+
 using namespace blit;
 
 enum SSD1351 : uint8_t {
-    SET_COLUMN        = 0x15, ///< See datasheet
-    SET_ROW           = 0x75, ///< See datasheet
-    WRITE_RAM         = 0x5C, ///< See datasheet
-    READ_RAM          = 0x5D, ///< Not currently used
-    SET_REMAP         = 0xA0, ///< See datasheet
-    START_LINE        = 0xA1, ///< See datasheet
-    DISPLAY_OFFSET    = 0xA2, ///< See datasheet
-    DISPLAY_ALL_OFF   = 0xA4, ///< Not currently used
-    DISPLAY_ALL_ON    = 0xA5, ///< Not currently used
-    NORMAL_DISPLAY    = 0xA6, ///< See datasheet
-    INVERT_DISPLAY    = 0xA7, ///< See datasheet
-    FUNCTION_SELECT   = 0xAB, ///< See datasheet
-    DISPLAY_OFF       = 0xAE, ///< See datasheet
-    DISPLAY_ON        = 0xAF, ///< See datasheet
-    PRECHARGE         = 0xB1, ///< See datasheet
-    DISPLAY_ENHANCE   = 0xB2, ///< Not currently used
-    CLOCK_DIV         = 0xB3, ///< See datasheet
-    SET_VSL           = 0xB4, ///< See datasheet
-    SET_GPIO          = 0xB5, ///< See datasheet
-    PRECHARGE_2       = 0xB6, ///< See datasheet
-    SET_GRAY          = 0xB8, ///< Not currently used
-    USE_LUT           = 0xB9, ///< Not currently used
-    PRECHARGE_LEVEL   = 0xBB, ///< Not currently used
-    VCOMH             = 0xBE, ///< See datasheet
-    CONTRAST_ABC      = 0xC1, ///< See datasheet
-    CONTRAST_MASTER   = 0xC7, ///< See datasheet
-    MUX_RATIO         = 0xCA, ///< See datasheet
-    COMMAND_LOCK      = 0xFD, ///< See datasheet
-    HORIZ_SCROLL      = 0x96, ///< Not currently used
-    STOP_SCROLL       = 0x9E, ///< Not currently used
-    START_SCROLL      = 0x9F, ///< Not currently used
+  SET_COLUMN        = 0x15, ///< See datasheet
+  SET_ROW           = 0x75, ///< See datasheet
+  WRITE_RAM         = 0x5C, ///< See datasheet
+  READ_RAM          = 0x5D, ///< Not currently used
+  SET_REMAP         = 0xA0, ///< See datasheet
+  START_LINE        = 0xA1, ///< See datasheet
+  DISPLAY_OFFSET    = 0xA2, ///< See datasheet
+  DISPLAY_ALL_OFF   = 0xA4, ///< Not currently used
+  DISPLAY_ALL_ON    = 0xA5, ///< Not currently used
+  NORMAL_DISPLAY    = 0xA6, ///< See datasheet
+  INVERT_DISPLAY    = 0xA7, ///< See datasheet
+  FUNCTION_SELECT   = 0xAB, ///< See datasheet
+  DISPLAY_OFF       = 0xAE, ///< See datasheet
+  DISPLAY_ON        = 0xAF, ///< See datasheet
+  PRECHARGE         = 0xB1, ///< See datasheet
+  DISPLAY_ENHANCE   = 0xB2, ///< DISPLAYENHANCE A
+  CLOCK_DIV         = 0xB3, ///< See datasheet
+  SET_VSL           = 0xB4, ///< See datasheet
+  SET_GPIO          = 0xB5, ///< See datasheet
+  PRECHARGE_2       = 0xB6, ///< See datasheet
+  SET_GRAY          = 0xB8, ///< Not currently used
+  USE_LUT           = 0xB9, ///< Linear grayscale LUT
+  PRECHARGE_LEVEL   = 0xBB, ///< Precharge voltage
+  VCOMH             = 0xBE, ///< See datasheet
+  CONTRAST_ABC      = 0xC1, ///< See datasheet
+  CONTRAST_MASTER   = 0xC7, ///< See datasheet
+  MUX_RATIO         = 0xCA, ///< See datasheet
+  COMMAND_LOCK      = 0xFD, ///< See datasheet
+  HORIZ_SCROLL      = 0x96, ///< Not currently used
+  STOP_SCROLL       = 0x9E, ///< Not currently used
+  START_SCROLL      = 0x9F, ///< Not currently used
 };
 
 static uint8_t rotation = LCD_ROTATION;
@@ -62,6 +64,7 @@ static volatile int buf_index = 0;
 
 static volatile bool do_render = true;
 
+static bool have_vsync = false;
 static uint32_t last_render = 0;
 
 static PIO pio = pio0;
@@ -69,6 +72,7 @@ static uint pio_sm = 0;
 static uint pio_offset = 0, pio_double_offset = 0;
 
 static uint32_t dma_channel = 0;
+static bool dma_ready = false;
 
 static uint16_t win_w, win_h; // window size
 
@@ -109,6 +113,24 @@ static void __isr dbi_dma_irq_handler() {
   }
 }
 
+static bool dma_is_busy() {
+  if(pixel_double && cur_scanline <= win_h / 2)
+    return true;
+
+  return dma_ready && dma_channel_is_busy(dma_channel);
+}
+
+static void wait_for_transfer() {
+  if(!dma_ready)
+    return;
+  dma_channel_wait_for_finish_blocking(dma_channel);
+  while(pixel_double && cur_scanline <= win_h / 2) {}
+  // DMA complete is not enough: leftover bits in the PIO TX FIFO/shift
+  // register still clock onto SCK after the DMA IRQ. Stall wait keeps the
+  // next command from interrupting a pixel burst.
+  pio_wait(pio, pio_sm);
+}
+
 static void command(uint8_t command, size_t len = 0, const char *data = nullptr) {
   pio_wait(pio, pio_sm);
 
@@ -117,6 +139,8 @@ static void command(uint8_t command, size_t len = 0, const char *data = nullptr)
     pio_sm_set_enabled(pio, pio_sm, false);
     pio->sm[pio_sm].shiftctrl &= ~PIO_SM0_SHIFTCTRL_PULL_THRESH_BITS;
     pio->sm[pio_sm].shiftctrl |= (8 << PIO_SM0_SHIFTCTRL_PULL_THRESH_LSB) | PIO_SM0_SHIFTCTRL_AUTOPULL_BITS;
+
+    pio_sm_clear_fifos(pio, pio_sm);
 
     // switch back to raw
     pio_sm_restart(pio, pio_sm);
@@ -221,32 +245,15 @@ void invert_display(bool i) {
 }
 
 static void send_init_sequence() {
-
-  command(SSD1351::COMMAND_LOCK, 1, "\x12"); // COMMANDLOCK
-  command(SSD1351::COMMAND_LOCK, 1, "\xB1"); // COMMANDLOCK
-  command(SSD1351::DISPLAY_OFF);
-
-  command(SSD1351::CLOCK_DIV, 1, "\xF1"); // CLOCKDIV
-  command(SSD1351::MUX_RATIO, 1, "\x7F"); // MUXRATIO (127)
-  command(SSD1351::DISPLAY_OFFSET, 1, "\x00"); // DISPLAYOFFSET
-  command(SSD1351::SET_GPIO, 1, "\x00"); // SETGPIO
-  command(SSD1351::FUNCTION_SELECT, 1, "\x01"); // FUNCTIONSELECT (internal)
-  command(SSD1351::PRECHARGE, 1, "\x32"); // PRECHARGE
-  command(SSD1351::VCOMH, 1, "\x05"); // VCOMH
-  command(SSD1351::NORMAL_DISPLAY);            // NORMALDISPLAY
-
-  command(SSD1351::CONTRAST_ABC, 3, "\xC8\x80\xC8"); // CONTRASTABC
-  command(SSD1351::CONTRAST_MASTER, 1, "\x0F");         // CONTRASTMASTER
-  command(SSD1351::SET_VSL, 3, "\xA0\xB5\x55"); // SETVSL (B4)
-  command(SSD1351::PRECHARGE_2, 1, "\x01");         // PRECHARGE2
-  command(SSD1351::DISPLAY_ON);                    // DISPLAYON
+  for(std::size_t i = 0; i < kSsd1351InitSeqCount; ++i) {
+    const auto &c = kSsd1351InitSeq[i];
+    command(c.cmd, c.nbytes, c.nbytes ? reinterpret_cast<const char *>(c.data) : nullptr);
+  }
 
   set_rotation(rotation);
-
   invert_display(false);
-
-  // finalize window
   set_window(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT);
+  command(SSD1351::DISPLAY_ON);
 }
 
 static void prepare_write() {
@@ -262,6 +269,7 @@ static void prepare_write() {
   gpio_put(LCD_DC_PIN, 1); // data mode
 
   pio_sm_set_enabled(pio, pio_sm, false);
+  pio_sm_clear_fifos(pio, pio_sm);
   pio_sm_restart(pio, pio_sm);
 
   if(pixel_double) {
@@ -285,23 +293,23 @@ static void prepare_write() {
 }
 
 static void update() {
-  dma_channel_wait_for_finish_blocking(dma_channel);
+  wait_for_transfer();
 
-  // update window if needed
   auto expected_win = cur_surf_info.bounds * (pixel_double ? 2 : 1);
+  const uint16_t x = static_cast<uint16_t>((DISPLAY_WIDTH - expected_win.w) / 2);
+  const uint16_t y = static_cast<uint16_t>((DISPLAY_HEIGHT - expected_win.h) / 2);
 
-  if(expected_win.w != win_w || expected_win.h != win_h)
-    set_window((DISPLAY_WIDTH - expected_win.w) / 2, (DISPLAY_HEIGHT - expected_win.h) / 2, expected_win.w, expected_win.h);
-
-  if(!write_mode)
-    prepare_write();
+  // Always rewind the GRAM window. Leaving WRITE_RAM open across frames
+  // lets a single extra/missing DCLK scroll the image by a row per flip.
+  set_window(x, y, static_cast<uint16_t>(expected_win.w), static_cast<uint16_t>(expected_win.h));
+  prepare_write();
 
   if(pixel_double) {
     cur_scanline = 0;
     upd_frame_buffer = frame_buffer;
     dma_channel_set_trans_count(dma_channel, win_w / 4, false);
   } else
-    dma_channel_set_trans_count(dma_channel, win_w * win_h, false);
+    dma_channel_set_trans_count(dma_channel, static_cast<uint32_t>(win_w) * win_h, false);
 
   dma_channel_set_read_addr(dma_channel, frame_buffer, true);
 }
@@ -326,13 +334,27 @@ static void clear() {
 
   for(int i = 0; i < win_w * win_h; i++)
     pio_sm_put_blocking(pio, pio_sm, 0);
+
+  pio_wait(pio, pio_sm);
 }
 
-static bool dma_is_busy() {
-  if(pixel_double && cur_scanline <= win_h / 2)
-    return true;
+#ifdef LCD_VSYNC_PIN
+static void vsync_callback(uint gpio, uint32_t events) {
+  (void)gpio;
+  (void)events;
+  if(!do_render && !dma_is_busy()) {
+    ::update();
+    do_render = true;
+  }
+}
+#endif
 
-  return dma_channel_is_busy(dma_channel);
+void ssd1351_set_master_contrast(uint8_t level) {
+  if(level > 0x0F)
+    level = 0x0F;
+  wait_for_transfer();
+  const char v = static_cast<char>(level);
+  command(SSD1351::CONTRAST_MASTER, 1, &v);
 }
 
 void init_display() {
@@ -348,6 +370,13 @@ void init_display() {
 
   bi_decl_if_func_used(bi_1pin_with_name(LCD_DC_PIN, "Display D/C"));
   bi_decl_if_func_used(bi_1pin_with_name(LCD_CS_PIN, "Display CS"));
+
+#ifdef LCD_VSYNC_PIN
+  gpio_set_function(LCD_VSYNC_PIN, GPIO_FUNC_SIO);
+  gpio_set_dir(LCD_VSYNC_PIN, GPIO_IN);
+  gpio_set_pulls(LCD_VSYNC_PIN, false, true);
+  bi_decl_if_func_used(bi_1pin_with_name(LCD_VSYNC_PIN, "Display TE/VSync"));
+#endif
 
 #ifdef DBI_8BIT
   // init RD
@@ -382,7 +411,11 @@ void init_display() {
   const int out_width = 1;
 #endif
 
-  const int clkdiv = std::ceil(clock_get_hz(clk_sys) / float(LCD_MAX_CLOCK * 2));
+  // Integer ceil() made 250 MHz / 20 MHz → clkdiv 7 → 17.86 MHz.
+  // Fractional divider hits the datasheet 20 MHz cap exactly.
+  float clkdiv = static_cast<float>(clock_get_hz(clk_sys)) / static_cast<float>(LCD_MAX_CLOCK * 2);
+  if(clkdiv < 1.0f)
+    clkdiv = 1.0f;
   sm_config_set_clkdiv(&cfg, clkdiv);
 
   sm_config_set_out_shift(&cfg, false, true, 8);
@@ -418,18 +451,26 @@ void init_display() {
   dma_channel = dma_claim_unused_channel(true);
   dma_channel_config config = dma_channel_get_default_config(dma_channel);
   channel_config_set_transfer_data_size(&config, DMA_SIZE_16);
+  channel_config_set_read_increment(&config, true);
+  channel_config_set_write_increment(&config, false);
   channel_config_set_dreq(&config, pio_get_dreq(pio, pio_sm, true));
   dma_channel_configure(
     dma_channel, &config, &pio->txf[pio_sm], frame_buffer, DISPLAY_WIDTH * DISPLAY_HEIGHT, false);
+  dma_ready = true;
 
   irq_add_shared_handler(DMA_IRQ_0, dbi_dma_irq_handler, PICO_SHARED_IRQ_HANDLER_DEFAULT_ORDER_PRIORITY);
   irq_set_enabled(DMA_IRQ_0, true);
 
   clear();
+
+#ifdef LCD_VSYNC_PIN
+  gpio_set_irq_enabled_with_callback(LCD_VSYNC_PIN, GPIO_IRQ_EDGE_RISE, true, vsync_callback);
+  have_vsync = true;
+#endif
 }
 
 void update_display(uint32_t time) {
-  if((do_render || (time - last_render >= 20)) && (fb_double_buffer || !dma_is_busy())) {
+  if((do_render || (!have_vsync && time - last_render >= 20)) && (fb_double_buffer || !dma_is_busy())) {
     if(fb_double_buffer) {
       buf_index ^= 1;
 
@@ -439,8 +480,10 @@ void update_display(uint32_t time) {
 
     ::render(time);
 
-    while(dma_is_busy()) {} // may need to wait for lores.
-    ::update();
+    if(!have_vsync) {
+      while(dma_is_busy()) {} // may need to wait for lores.
+      ::update();
+    }
 
     last_render = time;
     do_render = false;
@@ -458,6 +501,7 @@ bool display_render_needed() {
 }
 
 bool display_mode_supported(blit::ScreenMode new_mode, const blit::SurfaceTemplate &new_surf_template) {
+  (void)new_mode;
   if(new_surf_template.format != blit::PixelFormat::RGB565)
     return false;
 
@@ -471,6 +515,10 @@ bool display_mode_supported(blit::ScreenMode new_mode, const blit::SurfaceTempla
 }
 
 void display_mode_changed(blit::ScreenMode new_mode, blit::SurfaceTemplate &new_surf_template) {
+  (void)new_surf_template;
+  if(have_vsync)
+    do_render = true;
+
   set_pixel_double(new_mode == ScreenMode::lores);
 
   if(new_mode == ScreenMode::hires)

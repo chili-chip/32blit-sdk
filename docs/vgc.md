@@ -95,11 +95,37 @@ The console will automatically reboot into your game.
 | CPU      | RP2350, 150 MHz (dual-core)   |
 | RAM      | 520KB + 16MB                  |
 | Controls | 8 buttons + encoder           |
-| Screen   | 128x128 st7735s               |
-| Sound    | Mono speaker                  |
+| Screen   | 128×128 SSD1351 OLED (SPI)    |
+| Sound    | Mono speaker (PWM on GP22)    |
 | Storage  | 16MB XiP QSPI                 |
 
 The RP2350 in VGC Zero is significantly faster than the RP2040, allowing higher framerates, more complex logic, and improved audio support.
+
+### SSD1351 display HAL
+
+The board selects `dbi_ssd1351` (`32blit-pico/board/chilichip_vgc/config.cmake`). Pins are in `config.h`:
+
+| Signal | GPIO |
+| ------ | ---- |
+| `LCD_SCK_PIN` | 18 |
+| `LCD_MOSI_PIN` | 19 |
+| `LCD_CS_PIN` | 17 |
+| `LCD_DC_PIN` | 21 |
+| `LCD_RESET_PIN` | 20 |
+| SPI clock cap | 20 MHz (`LCD_MAX_CLOCK`) |
+| Rotation | 2 (180°) |
+
+There is no backlight pin. Dim the panel with `ssd1351_set_master_contrast(0…15)` (command `0xC7`), not a software black veil.
+
+| Item | Behaviour |
+| ---- | --------- |
+| `0xB3` CLOCK_DIV | `0xF0` (max oscillator, ÷1) — ~2× OLED PWM refresh versus the previous `0xF1`. Override with `-DSSD1351_CLOCK_DIV=0xF1` if a panel cannot tolerate /1. |
+| Init extras | `0xB2` enhance, `0xBB` precharge voltage, `0xB9` linear LUT |
+| SPI | Fractional PIO clkdiv so 250 MHz sysclk actually hits **20 MHz**. Do not raise the cap to 30–40 MHz. |
+| GRAM | Re-issue column/row + `WRITE_RAM` every frame (stops rolling lines from pointer drift). |
+| TE | Optional `LCD_TE_PIN` / `LCD_VSYNC_PIN`. The Waveshare 7-pin module has no TE pin. |
+
+A 128×128 RGB565 frame is 32 768 bytes ≈ **13.1 ms** at 20 MHz. Phone cameras at 30/60 fps can still beat against OLED PWM; remaining roll on a camera is the shutter, not GRAM tearing.
 
 ## References
 
