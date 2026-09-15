@@ -1,6 +1,7 @@
 #include "display.hpp"
 #include "display_commands.hpp"
 #include "ssd1351_init_seq.hpp"
+#include "ssd1351_row_compensation.hpp"
 
 #include "hardware/clocks.h"
 #include "hardware/dma.h"
@@ -78,7 +79,7 @@ static uint16_t win_w, win_h; // window size
 
 static bool write_mode = false; // in RAMWR
 static bool pixel_double = false;
-static uint16_t *upd_frame_buffer = nullptr;
+static const uint16_t *upd_frame_buffer = nullptr;
 
 // frame buffer where pixel data is stored
 static uint16_t *frame_buffer = nullptr;
@@ -292,8 +293,44 @@ static void prepare_write() {
   write_mode = true;
 }
 
+// blit-loader is confined to the bottom 32K of RAM and has no room for the
+// scratch frame, so it runs uncorrected. Games flashed as their own .uf2, which
+// is how docs/vgc.md has you build for this board, are unaffected.
+#if defined(SSD1351_ROW_COMPENSATION) && !defined(BUILD_LOADER)
+#define SSD1351_ROW_COMPENSATION_ENABLED 1
+#endif
+
+#ifdef SSD1351_ROW_COMPENSATION_ENABLED
+#ifdef LCD_VSYNC_PIN
+// update() would run the pass in the vsync GPIO handler.
+#error "SSD1351_ROW_COMPENSATION cannot be combined with LCD_VSYNC_PIN/LCD_TE_PIN"
+#endif
+
+// Built into a scratch frame rather than in place, so a game that only redraws
+// part of the screen does not accumulate the correction.
+static uint16_t comp_fb[DISPLAY_WIDTH * DISPLAY_HEIGHT];
+
+static uint8_t comp_pct[3] = {
+  kSsd1351RowCompensationDefault[0],
+  kSsd1351RowCompensationDefault[1],
+  kSsd1351RowCompensationDefault[2],
+};
+#endif
+
 static void update() {
   wait_for_transfer();
+
+  const uint16_t *dma_src = frame_buffer;
+
+#ifdef SSD1351_ROW_COMPENSATION_ENABLED
+  // Ahead of the window commands, so the pass does not sit inside an open
+  // WRITE_RAM holding CS down. Odd rotations put the framebuffer's rows down
+  // the panel's columns, which is the wrong axis to correct.
+  if(!(rotation & 1) && (comp_pct[0] | comp_pct[1] | comp_pct[2])) {
+    ssd1351_compensate_rows(frame_buffer, comp_fb, cur_surf_info.bounds.w, cur_surf_info.bounds.h, comp_pct);
+    dma_src = comp_fb;
+  }
+#endif
 
   auto expected_win = cur_surf_info.bounds * (pixel_double ? 2 : 1);
   const uint16_t x = static_cast<uint16_t>((DISPLAY_WIDTH - expected_win.w) / 2);
@@ -306,12 +343,12 @@ static void update() {
 
   if(pixel_double) {
     cur_scanline = 0;
-    upd_frame_buffer = frame_buffer;
+    upd_frame_buffer = dma_src;
     dma_channel_set_trans_count(dma_channel, win_w / 4, false);
   } else
     dma_channel_set_trans_count(dma_channel, static_cast<uint32_t>(win_w) * win_h, false);
 
-  dma_channel_set_read_addr(dma_channel, frame_buffer, true);
+  dma_channel_set_read_addr(dma_channel, dma_src, true);
 }
 
 static void set_pixel_double(bool pd) {
@@ -355,6 +392,48 @@ void ssd1351_set_master_contrast(uint8_t level) {
   wait_for_transfer();
   const char v = static_cast<char>(level);
   command(SSD1351::CONTRAST_MASTER, 1, &v);
+}
+
+void ssd1351_set_row_compensation(uint8_t r_pct, uint8_t g_pct, uint8_t b_pct) {
+#ifdef SSD1351_ROW_COMPENSATION_ENABLED
+  comp_pct[0] = r_pct;
+  comp_pct[1] = g_pct;
+  comp_pct[2] = b_pct;
+#else
+  (void)r_pct;
+  (void)g_pct;
+  (void)b_pct;
+#endif
+}
+
+void ssd1351_set_contrast_abc(uint8_t a, uint8_t b, uint8_t c) {
+  wait_for_transfer();
+  const char abc[3] = {static_cast<char>(a), static_cast<char>(b), static_cast<char>(c)};
+  command(SSD1351::CONTRAST_ABC, 3, abc);
+}
+
+void ssd1351_set_row_drive(uint8_t phase_12, uint8_t phase_3, uint8_t precharge_level, uint8_t vsl_select) {
+  if(phase_3 == 0) // 0 DCLK is invalid
+    phase_3 = 1;
+  else if(phase_3 > 15)
+    phase_3 = 15;
+
+  precharge_level &= 0x1F;
+  vsl_select = 0xA0 | (vsl_select & 0x02); // A[7:2] is fixed, A[0] must be 0
+
+  wait_for_transfer();
+
+  const char phases = static_cast<char>(phase_12);
+  command(SSD1351::PRECHARGE, 1, &phases);
+
+  const char second = static_cast<char>(phase_3);
+  command(SSD1351::PRECHARGE_2, 1, &second);
+
+  const char level = static_cast<char>(precharge_level);
+  command(SSD1351::PRECHARGE_LEVEL, 1, &level);
+
+  const char vsl[3] = {static_cast<char>(vsl_select), static_cast<char>(0xB5), 0x55};
+  command(SSD1351::SET_VSL, 3, vsl);
 }
 
 void init_display() {

@@ -31,7 +31,28 @@ void display_mode_changed(blit::ScreenMode new_mode, blit::SurfaceTemplate &new_
 /// SSD1351 command 0xC7 master contrast, 0–15. Implemented by the
 /// dbi_ssd1351 driver. Games can call this after init_display() to dim
 /// the OLED without a software black veil (which cannot change PWM rate).
+///
+/// This is also the knob for horizontal banding on rows that contain bright
+/// pixels: it scales segment drive current, and the banding is the row's
+/// current spike sagging the panel supply. See docs/vgc.md.
 void ssd1351_set_master_contrast(uint8_t level);
+
+/// SSD1351 command 0xC1 per-colour drive current, the fine control under the
+/// master contrast above. Blue is the first colour to drop out of regulation
+/// when a row sags, so this is where to trim one colour rather than all three.
+void ssd1351_set_contrast_abc(uint8_t a, uint8_t b, uint8_t c);
+
+/// Strength of the driver's row-load compensation, as the percent gain applied
+/// to a fully lit row, per channel. Only has an effect on a board that defines
+/// SSD1351_ROW_COMPENSATION; 0, 0, 0 turns it off for an A/B against the
+/// uncorrected frame. See docs/vgc.md.
+void ssd1351_set_row_compensation(uint8_t r_pct, uint8_t g_pct, uint8_t b_pct);
+
+/// Re-programs the SSD1351 segment waveform registers (0xB1 phase 1/2, 0xB6
+/// phase 3, 0xBB pre-charge voltage, 0xB4 VSL source). init_display() already
+/// programs the SSD1351_* defaults from ssd1351_init_seq.hpp; this exists so a
+/// new panel can be swept on the bench without a rebuild per value.
+void ssd1351_set_row_drive(uint8_t phase_12, uint8_t phase_3, uint8_t precharge_level, uint8_t vsl_select);
 
 blit::SurfaceInfo &set_screen_mode(blit::ScreenMode mode);
 bool set_screen_mode_format(blit::ScreenMode new_mode, blit::SurfaceTemplate &new_surf_template);

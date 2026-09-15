@@ -39,6 +39,11 @@
 // ceiling before any game work). 20 MHz drops that to ~13 ms.
 // Do not raise this to 30–40 MHz: that overclocks the panel.
 #define LCD_MAX_CLOCK 20000000
+// Rows containing bright pixels lose brightness because the panel supply sags
+// under the row's current spike. Correct for it in the frame; costs a 32 KiB
+// scratch buffer and one pass over the framebuffer per update. See docs/vgc.md
+// and ssd1351_set_row_compensation() for tuning it on the panel.
+#define SSD1351_ROW_COMPENSATION 1
 // Waveshare 1.5" SSD1351 modules do not break out TE. Define LCD_TE_PIN
 // or LCD_VSYNC_PIN if a later board wires it; the driver then waits on
 // the rising edge before DMA, same as the ST7789 HAL.
