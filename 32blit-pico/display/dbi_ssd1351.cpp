@@ -357,6 +357,12 @@ void ssd1351_set_master_contrast(uint8_t level) {
   command(SSD1351::CONTRAST_MASTER, 1, &v);
 }
 
+void ssd1351_set_contrast_abc(uint8_t a, uint8_t b, uint8_t c) {
+  wait_for_transfer();
+  const char abc[3] = {static_cast<char>(a), static_cast<char>(b), static_cast<char>(c)};
+  command(SSD1351::CONTRAST_ABC, 3, abc);
+}
+
 void ssd1351_set_row_drive(uint8_t phase_12, uint8_t phase_3, uint8_t precharge_level, uint8_t vsl_select) {
   if(phase_3 == 0) // 0 DCLK is invalid
     phase_3 = 1;

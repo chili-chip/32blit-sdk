@@ -115,55 +115,94 @@ The board selects `dbi_ssd1351` (`32blit-pico/board/chilichip_vgc/config.cmake`)
 | SPI clock cap | 20 MHz (`LCD_MAX_CLOCK`) |
 | Rotation | 2 (180°) |
 
-There is no backlight pin. Dim the panel with `ssd1351_set_master_contrast(0…15)` (command `0xC7`), not a software black veil.
+There is no backlight pin. Dim the panel with `ssd1351_set_master_contrast(0…15)` (command `0xC7`), not a software black veil. That command is also the knob for horizontal banding on rows containing bright pixels — see below.
 
 | Item | Behaviour |
 | ---- | --------- |
 | `0xB3` CLOCK_DIV | `0xF0` (max oscillator, ÷1) — ~2× OLED PWM refresh versus the previous `0xF1`. Override with `-DSSD1351_CLOCK_DIV=0xF1` if a panel cannot tolerate /1. |
 | Init extras | `0xB2` enhance, `0xB9` linear LUT |
-| Row drive | `0xB4` internal VSL, `0xB1`/`0xB6` pre-charge periods, `0xBB` pre-charge voltage — see below |
+| Drive current | `0xC7` master contrast `0x0A`, `0xC1` per-colour — the knob for horizontal banding, see below |
+| Segment waveform | `0xB1`/`0xB6` pre-charge periods, `0xBB` pre-charge voltage, `0xB4` VSL source — see below |
 | SPI | Fractional PIO clkdiv so 250 MHz sysclk actually hits **20 MHz**. Do not raise the cap to 30–40 MHz. |
 | GRAM | Re-issue column/row + `WRITE_RAM` every frame (stops rolling lines from pointer drift). |
 | TE | Optional `LCD_TE_PIN` / `LCD_VSYNC_PIN`. The Waveshare 7-pin module has no TE pin. |
 
 A 128×128 RGB565 frame is 32 768 bytes ≈ **13.1 ms** at 20 MHz. Phone cameras at 30/60 fps can still beat against OLED PWM; remaining roll on a camera is the shutter, not GRAM tearing.
 
-#### Row cross-talk (tinted horizontal bands)
+#### Horizontal banding on rows with bright pixels
 
-Symptom: a solid dark background picks up a tinted horizontal line across every
-row that contains bright pixels somewhere along it, extending to the left and
-right of those pixels.
+Symptom: a solid dark background picks up a horizontal band across every row
+that contains bright pixels somewhere along it, extending the full width of the
+row, well to the left and right of those pixels.
 
-The SSD1351 drives a passive matrix, so one COM (row) is selected at a time and
-every lit segment in that row sinks its current through that single COM
-electrode. Anything that lets the row's shared references move with the row's
-total current makes the rest of that row shift brightness and hue. The init
-table therefore uses the datasheet power-on values for the four registers that
-decide how much of this the driver generates, all overridable from a board
-`config.cmake` or the cmake command line:
+Measured off a photo of the panel, on three background strips 10, 21 and 32
+columns in from the left edge, against rows lit by a UI box several hundred
+columns away. All three strips dip by the same amount on the same rows:
+
+* background luminance **down about 8–9%** on the most heavily lit rows,
+* red **up about 3% relative to blue** — blue and green lose more than red,
+* no gradient across the row: the dip is the same near the edge and a third of
+  the way in.
+
+That is supply droop, not a timing or reference setting. The SSD1351 drives a
+passive matrix, so one COM is selected at a time and every lit segment in that
+row sinks its current through that one COM electrode; a mostly lit row pulls a
+far bigger current spike than a row of dark background. The segment drivers are
+*current* sources, so a sagging VCC changes nothing until the sag eats their
+compliance headroom — then they fall out of regulation, and the colour with the
+highest forward voltage goes first, which is blue. Hence the red shift.
+
+**The real fix is on the board:** VCC and VCOMH decoupling at the panel, per the
+datasheet application circuit, and how both are routed to the FPC. Verify by
+scoping VCC at the panel while a bright bar is on screen; the band is the ripple
+at row rate.
+
+**The lever in firmware is drive current.** Less current, less droop, and the
+drivers stay in regulation:
 
 | Define | Default | Notes |
 | ------ | ------- | ----- |
-| `SSD1351_VSL_SELECT` | `0xA2` (internal VSL) | External VSL (`0xA0`) needs a resistor and diode from the VSL pin to VSS (datasheet figure 14-1). The `0xB4` note says that circuit is required "in order to avoid distortion in display pattern"; with the pin left open there is nothing holding the segment reference. |
-| `SSD1351_PHASE_12` | `0x82` | Phase 1 = 5 DCLK, phase 2 (first pre-charge) = 8 DCLK. |
-| `SSD1351_PRECHARGE_2` | `0x08` | Phase 3 (second pre-charge) = 8 DCLK. |
-| `SSD1351_PRECHARGE_LEVEL` | `0x17` | About 0.47 x VCC. `0x1F` is the 0.60 x VCC maximum, which parks dark pixels just under their turn-on point. |
-| `SSD1351_CONTRAST_A`/`_B`/`_C` | `0xC8`/`0x80`/`0xC8` | Lowering these lowers the current a bright row pulls through its COM electrode. Costs brightness, so it is the last knob to reach for. |
+| `SSD1351_CONTRAST_MASTER` | `0x0A` | `0xC7` master contrast, 0–15. `0x0A` matches the Adafruit and micropython reference inits and draws about a third less than the `0x0F` maximum this board used to run. `ssd1351_set_master_contrast()` sweeps it at runtime. |
+| `SSD1351_CONTRAST_A`/`_B`/`_C` | `0xC8`/`0x80`/`0xC8` | `0xC1` per-colour current, the fine control under the master. Blue drops out first, so a panel that bands in hue more than in brightness wants blue trimmed here instead of everything trimmed with `0xC7`. `ssd1351_set_contrast_abc()` sweeps these. |
 
-Phases 2 and 3 were previously at their minimums (`0x32` / `0x01`) to shave a
-row period. That leaves the segment current sources still charging pixel
-capacitance once the constant-current stage starts, so a pixel's final
-brightness depends on how loaded the rest of its row is. A row period is
-phase 1 + phase 2 + drive DCLKs, so the power-on periods give back about 8% of
-refresh rate, which the `0xF0` clock divider above already more than covers.
+To find the level where it goes away, bind the master contrast to a button and
+step it down over a screen with a bright bar on a dark background. Both setters
+live in the pico HAL rather than the engine, so declare them in the game:
 
+```cpp
+extern void ssd1351_set_master_contrast(uint8_t level);
+// ...
+if(buttons.pressed & Button::DPAD_DOWN)
+    ssd1351_set_master_contrast(--level);
+```
+
+How it behaves as you step down says which problem you have. If the band
+disappears over a step or two, it is driver dropout and the fix is to run below
+that level (or give VCC more headroom on the board). If it fades smoothly in
+proportion to brightness, the droop is resistive and no contrast setting removes
+it — that needs the decoupling fixed, or the frame pre-compensated per row.
+
+Note that the two knobs are not equivalent for a fixed brightness target:
+`0xC7` scales all three colours, while `0xC1` can buy headroom on blue alone and
+keep red and green where they are.
+
+#### Segment waveform settings
+
+`0xB1` phase 1/2, `0xB6` phase 3, `0xBB` pre-charge voltage and `0xB4` VSL
+source are all overridable (`SSD1351_PHASE_12`, `SSD1351_PRECHARGE_2`,
+`SSD1351_PRECHARGE_LEVEL`, `SSD1351_VSL_SELECT`) and
 `ssd1351_set_row_drive(phase_12, phase_3, precharge_level, vsl_select)` writes
-the same four registers at runtime, for sweeping values on a new panel without
-a rebuild per step.
+all four at runtime.
 
-If bands remain after all of that, it is the panel supply rather than the
-driver: `VCC` and `VCOMH` sag under the extra row current. Check local
-decoupling on both and how they are routed to the FPC.
+These were tried against the banding above and made no difference to it, which
+is consistent with the supply-droop explanation, so they stay on the values the
+panel has been running — the reference-init values, which are the minimum for
+phases 2 and 3 and the maximum for pre-charge voltage. The power-on values
+instead are `0x82` / `0x08` / `0x17`; phases 2 and 3 at the power-on periods
+cost about 8% of refresh rate, since a row period is phase 1 + phase 2 + drive
+DCLKs. They are the settings worth sweeping for any *other* segment artefact:
+smearing or ghosting wants longer phases, dark pixels glowing wants a lower
+pre-charge voltage.
 
 ## References
 

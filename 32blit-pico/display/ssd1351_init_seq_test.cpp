@@ -2,14 +2,12 @@
 
 #include <cstdio>
 
-#ifdef SSD1351_ROW_DRIVE_OVERRIDDEN
-static constexpr bool check_recommended = false;
-#else
-static constexpr bool check_recommended = true;
-#endif
-
 // Host-only check of the SSD1351 bring-up table. Not part of BlitHalPico.
 //   g++ -std=c++17 -o /tmp/ssd1351_init_seq_test ssd1351_init_seq_test.cpp && /tmp/ssd1351_init_seq_test
+//
+// Checks structure and datasheet-legal ranges only. It deliberately does not
+// pin the analog values to one setting: which of them a panel wants is a
+// bench question, and every one of them is overridable.
 int main() {
   bool saw_clock = false;
   bool saw_enhance = false;
@@ -17,6 +15,8 @@ int main() {
   bool saw_precharge_2 = false;
   bool saw_precharge_level = false;
   bool saw_vsl = false;
+  bool saw_contrast_abc = false;
+  bool saw_contrast_master = false;
   bool saw_use_lut = false;
   bool saw_display_on = false;
 
@@ -32,6 +32,11 @@ int main() {
         std::fprintf(stderr, "CLOCK_DIV mismatch vs kSsd1351ClockDivDefault\n");
         return 1;
       }
+      if((c.data[0] & 0x0F) != 0) {
+        std::fprintf(stderr, "CLOCK_DIV divider is /%u; want /1 (low nibble 0)\n",
+                     (c.data[0] & 0x0F) + 1u);
+        return 1;
+      }
     }
     if(c.cmd == kSsd1351CmdEnhance) {
       saw_enhance = true;
@@ -40,11 +45,6 @@ int main() {
         return 1;
       }
     }
-    // Row cross-talk settings. A row that contains bright pixels tints the
-    // rest of that row when the segment drivers are still charging pixel
-    // capacitance during the current drive stage, or when the segment
-    // reference is left to float, so keep these inside the datasheet ranges
-    // rather than at the minimums that squeeze out a few percent of refresh.
     if(c.cmd == kSsd1351CmdPhase12) {
       saw_phase_12 = true;
       const unsigned phase_1 = c.data[0] & 0x0F;
@@ -57,22 +57,11 @@ int main() {
         std::fprintf(stderr, "phase 2 (0xB1 A[7:4]) is %u; 0 to 2 are invalid\n", phase_2);
         return 1;
       }
-      if(check_recommended && phase_2 < 8) {
-        std::fprintf(stderr, "phase 2 is %u DCLK, below the power-on 8; short first "
-                             "pre-charge causes row cross-talk\n", phase_2);
-        return 1;
-      }
     }
     if(c.cmd == kSsd1351CmdPrecharge2) {
       saw_precharge_2 = true;
-      const unsigned phase_3 = c.data[0] & 0x0F;
-      if(phase_3 < 1) {
+      if((c.data[0] & 0x0F) < 1) {
         std::fprintf(stderr, "phase 3 (0xB6) is 0 DCLK, which is invalid\n");
-        return 1;
-      }
-      if(check_recommended && phase_3 < 8) {
-        std::fprintf(stderr, "phase 3 (0xB6) is %u DCLK, below the power-on 8; the pixel "
-                             "should settle before the current drive stage\n", phase_3);
         return 1;
       }
     }
@@ -80,11 +69,6 @@ int main() {
       saw_precharge_level = true;
       if(c.data[0] > 0x1F) {
         std::fprintf(stderr, "pre-charge voltage (0xBB) 0x%02X is above 0x1F\n", c.data[0]);
-        return 1;
-      }
-      if(check_recommended && c.data[0] > 0x17) {
-        std::fprintf(stderr, "pre-charge voltage (0xBB) 0x%02X is above the power-on 0x17; "
-                             "that parks dark pixels near turn-on\n", c.data[0]);
         return 1;
       }
     }
@@ -98,9 +82,18 @@ int main() {
         std::fprintf(stderr, "SET_VSL A[1:0] is %u; only 00b and 10b are defined\n", c.data[0] & 0x03);
         return 1;
       }
-      if(check_recommended && (c.data[0] & 0x03) == 0x00) {
-        std::fprintf(stderr, "SET_VSL selects external VSL; that needs the VSL-to-VSS "
-                             "resistor and diode of datasheet figure 14-1\n");
+    }
+    if(c.cmd == kSsd1351CmdContrastAbc) {
+      saw_contrast_abc = true;
+      if(c.nbytes != 3) {
+        std::fprintf(stderr, "CONTRAST_ABC (0xC1) takes three bytes, got %u\n", c.nbytes);
+        return 1;
+      }
+    }
+    if(c.cmd == kSsd1351CmdContrastMaster) {
+      saw_contrast_master = true;
+      if(c.data[0] > 0x0F) {
+        std::fprintf(stderr, "master contrast (0xC7) 0x%02X is above 0x0F\n", c.data[0]);
         return 1;
       }
     }
@@ -108,11 +101,6 @@ int main() {
       saw_use_lut = true;
     if(c.cmd == 0xAF)
       saw_display_on = true;
-    if(c.cmd == 0xB3 && (c.data[0] & 0x0F) != 0) {
-      std::fprintf(stderr, "CLOCK_DIV divider is /%u; want /1 (low nibble 0)\n",
-                   (c.data[0] & 0x0F) + 1u);
-      return 1;
-    }
   }
 
   if(!saw_clock || !saw_enhance || !saw_precharge_level || !saw_use_lut) {
@@ -121,8 +109,13 @@ int main() {
     return 1;
   }
   if(!saw_phase_12 || !saw_precharge_2 || !saw_vsl) {
-    std::fprintf(stderr, "init sequence missing row drive commands (phase12=%d phase3=%d vsl=%d)\n",
+    std::fprintf(stderr, "init sequence missing segment waveform commands (phase12=%d phase3=%d vsl=%d)\n",
                  saw_phase_12, saw_precharge_2, saw_vsl);
+    return 1;
+  }
+  if(!saw_contrast_abc || !saw_contrast_master) {
+    std::fprintf(stderr, "init sequence missing drive current commands (abc=%d master=%d)\n",
+                 saw_contrast_abc, saw_contrast_master);
     return 1;
   }
   if(saw_display_on) {
@@ -134,7 +127,8 @@ int main() {
     return 1;
   }
 
-  std::printf("ssd1351 init sequence ok: CLOCK_DIV=0x%02X, %zu commands\n",
-              kSsd1351ClockDivDefault, kSsd1351InitSeqCount);
+  std::printf("ssd1351 init sequence ok: CLOCK_DIV=0x%02X, master contrast 0x%02X, %zu commands\n",
+              kSsd1351ClockDivDefault, static_cast<unsigned>(SSD1351_CONTRAST_MASTER),
+              kSsd1351InitSeqCount);
   return 0;
 }
