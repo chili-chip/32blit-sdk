@@ -39,13 +39,17 @@ brew install libjpeg
 brew install freetype
 ````
 
-Then install 32blit tools itself.
+Then install the 32blit tools from the SDK's `tools/requirements.txt`. It installs the `32blit` command (which pulls in `construct`, `bitstring` and the other Python dependencies) and pins `bitstring<5`, because bitstring 5 removed `ConstBitStream`, which the tools still use.
+
+Homebrew's Python refuses `pip install` outside a virtual environment ("externally-managed-environment", [PEP 668](https://peps.python.org/pep-0668/)), so create one first:
 
 ```
-pip3 install 32blit
+python3 -m venv ~/venvs/32blit
+source ~/venvs/32blit/bin/activate
+python3 -m pip install -r tools/requirements.txt
 ```
 
-TODO: Document install of `construct` and `bitstring` for Python 3 (probably need a requirements.txt for the tools directory)
+Run the commands from the root of your `32blit-sdk` checkout, and activate the venv (`source ~/venvs/32blit/bin/activate`) in every new terminal before building.
 
 
 ####  Verifying install
