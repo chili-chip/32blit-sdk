@@ -104,14 +104,13 @@ static Pen title_colour(const std::string &title) {
     hash = (hash ^ uint8_t(c)) * 16777619u;
 
   static const Pen colours[] = {
-    Pen(200, 70, 60), Pen(60, 140, 200), Pen(70, 170, 90), Pen(180, 120, 40), Pen(140, 80, 180), Pen(40, 150, 150)
+    theme::chili, theme::hot, Pen(200, 20, 90), Pen(150, 30, 160), Pen(60, 150, 50), Pen(230, 150, 0)
   };
   return colours[hash % (sizeof(colours) / sizeof(colours[0]))];
 }
 
 static void draw_card(const Rect &r, Pen colour, const std::string &label) {
-  screen.pen = colour;
-  screen.rectangle(r);
+  draw_round_rect(r, colour, mix(colour, theme::background_bottom, 1, 2));
 
   if(r.w < 40)
     return;
@@ -122,27 +121,27 @@ static void draw_card(const Rect &r, Pen colour, const std::string &label) {
 }
 
 static void draw_gear(const Rect &r) {
-  screen.pen = theme::panel;
-  screen.rectangle(r);
+  draw_round_rect(r, theme::chili, theme::hot);
 
   Point c(r.x + r.w / 2, r.y + r.h / 2);
   int radius = std::min(r.w, r.h) / 4;
 
-  screen.pen = theme::dim_text;
+  screen.pen = theme::text;
   for(int i = 0; i < 8; i++) {
     float a = i * pi / 4;
     Point p(c.x + int(std::cos(a) * radius * 1.3f), c.y + int(std::sin(a) * radius * 1.3f));
     screen.circle(p, std::max(1, radius / 3));
   }
   screen.circle(c, radius);
-  screen.pen = theme::panel;
+  screen.pen = mix(theme::chili, theme::hot, 1, 2);
   screen.circle(c, std::max(1, radius / 2));
 }
 
 static void draw_tile(int index, const Rect &r, bool focused) {
   if(focused) {
-    screen.pen = theme::accent;
-    screen.rectangle(Rect(r.x - 2, r.y - 2, r.w + 4, r.h + 4));
+    // a hot glow around the selected tile
+    draw_round_rect(Rect(r.x - 3, r.y - 3, r.w + 6, r.h + 6), mix(theme::chili, theme::background_top, 1, 2), mix(theme::hot, theme::background_top, 1, 2));
+    draw_round_rect(Rect(r.x - 2, r.y - 2, r.w + 4, r.h + 4), theme::chili, theme::pepper);
   }
 
   if(is_settings_tile(index))
@@ -155,7 +154,7 @@ static void draw_tile(int index, const Rect &r, bool focused) {
   }
 
   if(!focused) {
-    screen.pen = Pen(0, 0, 0, 110);
+    screen.pen = theme::shade;
     screen.rectangle(r);
   }
 }
@@ -163,8 +162,7 @@ static void draw_tile(int index, const Rect &r, bool focused) {
 static void render_home() {
   const int w = screen.bounds.w, h = screen.bounds.h;
 
-  screen.pen = theme::background;
-  screen.clear();
+  draw_background();
 
   // furthest first so the selected tile ends up on top
   for(int dist = 2; dist >= 0; dist--) {
@@ -181,31 +179,49 @@ static void render_home() {
     }
   }
 
-  // title of the selected tile
+  // position dots under the tile
   auto big = tile_rect(0);
-  Rect title_r(4, big.y + big.h + 4, w - 8, 9);
+  const int count = num_tiles();
+  int dots_y = big.y + big.h + 4;
+  if(count <= 16) {
+    const int spacing = 5;
+    int x = w / 2 - ((count - 1) * spacing + 4) / 2;
+    for(int i = 0; i < count; i++) {
+      if(i == selected) {
+        draw_round_rect(Rect(x, dots_y, 6, 2), theme::hot, theme::pepper);
+        x += 7;
+      } else {
+        screen.pen = theme::faint_text;
+        screen.rectangle(Rect(x, dots_y, 2, 2));
+        x += spacing;
+      }
+    }
+  }
+
+  // title of the selected tile
+  Rect title_r(4, dots_y + 4, w - 8, 9);
   Rect sub_r(4, title_r.y + 10, w - 8, 9);
 
   if(is_settings_tile(selected)) {
     screen.pen = theme::text;
-    screen.text("Settings", minimal_font, title_r, true, TextAlign::top_center);
+    screen.text("Settings", fat_font, title_r, true, TextAlign::top_center);
 
     if(get_games().empty()) {
-      screen.pen = theme::dim_text;
+      screen.pen = theme::hot;
       screen.text("Copy games to the USB drive", minimal_font, sub_r, true, TextAlign::top_center);
     }
   } else {
     auto &game = get_games()[selected];
     screen.pen = theme::text;
-    screen.text(fit_text(game.title, title_r.w), minimal_font, title_r, true, TextAlign::top_center);
-    screen.pen = theme::dim_text;
+    screen.text(fit_text(game.title, title_r.w, fat_font), fat_font, title_r, true, TextAlign::top_center);
+    screen.pen = theme::hot;
     screen.text(fit_text(game.author, sub_r.w), minimal_font, sub_r, true, TextAlign::top_center);
   }
 
-  // button hints
-  screen.pen = theme::dim_text;
-  const char *hint = is_settings_tile(selected) ? "A: Open" : "A: Play  Y: Info";
-  screen.text(hint, minimal_font, Rect(0, h - 10, w, 10), true, TextAlign::center_center);
+  if(is_settings_tile(selected))
+    draw_hints({{'A', "Open"}}, h - 10);
+  else
+    draw_hints({{'A', "Play"}, {'Y', "Info"}}, h - 10);
 
   draw_status_bar();
 }
@@ -286,45 +302,54 @@ static void render_info() {
   const int w = screen.bounds.w, h = screen.bounds.h;
   auto &game = get_games()[info_game];
 
-  screen.pen = theme::background;
-  screen.clear();
+  draw_background();
   draw_status_bar("Game info");
 
-  int y = status_bar_h + 3;
+  int y = status_bar_h + 4;
   screen.pen = theme::text;
-  screen.text(fit_text(game.title, w - 8), minimal_font, Point(4, y));
+  screen.text(fit_text(game.title, w - 8, fat_font), fat_font, Point(4, y));
   y += 10;
 
-  screen.pen = theme::dim_text;
+  screen.pen = theme::hot;
   std::string details = game.author;
   if(!game.version.empty())
     details += details.empty() ? game.version : "  " + game.version;
   screen.text(fit_text(details, w - 8), minimal_font, Point(4, y));
   y += 9;
+  screen.pen = theme::dim_text;
   screen.text(format_size(game.size), minimal_font, Point(4, y));
-  y += 12;
+  y += 10;
+
+  screen.pen = theme::chili;
+  screen.h_span(Point(4, y), w - 8);
+  y += 3;
 
   // as much of the description as fits above the actions
   const int row_h = 13;
-  const int actions_y = h - InfoActionCount * row_h - 2;
+  const int actions_y = h - InfoActionCount * row_h - 1;
   auto wrapped = screen.wrap_text(game.description, w - 8, minimal_font);
+  int max_lines = std::max(0, (actions_y - 2 - y) / 9);
+  size_t end = 0;
+  for(int line = 0; line < max_lines && end != std::string::npos; line++)
+    end = wrapped.find('\n', line ? end + 1 : 0);
+  wrapped = max_lines ? wrapped.substr(0, end) : "";
+
   screen.pen = theme::text;
   screen.text(wrapped, minimal_font, Rect(4, y, w - 8, actions_y - y - 2), true, TextAlign::top_left);
-  // cover any overflow
-  screen.pen = theme::background;
-  screen.rectangle(Rect(0, actions_y - 2, w, h - actions_y + 2));
 
   static const char *const labels[InfoActionCount] = {"Play", "Delete game", "Delete save data"};
 
   for(int i = 0; i < InfoActionCount; i++) {
     Rect r(0, actions_y + i * row_h, w, row_h);
-    if(i == info_action) {
-      screen.pen = theme::highlight;
-      screen.rectangle(r);
+    bool is_selected = i == info_action;
+    if(is_selected) {
+      draw_round_rect(Rect(r.x + 2, r.y, r.w - 4, r.h - 1), theme::chili, theme::hot);
+      screen.pen = theme::pepper;
+      screen.rectangle(Rect(r.x + 2, r.y + 2, 2, r.h - 5));
     }
 
-    screen.pen = i == DeleteSave && !has_save_data(info_game) ? theme::dim_text : theme::text;
-    screen.text(labels[i], minimal_font, Rect(r.x + 4, r.y, r.w - 8, r.h), true, TextAlign::center_left);
+    screen.pen = i == DeleteSave && !has_save_data(info_game) && !is_selected ? theme::faint_text : theme::text;
+    screen.text(labels[i], minimal_font, Rect(r.x + 7, r.y, r.w - 12, r.h - 1), true, TextAlign::center_left);
   }
 }
 
@@ -384,5 +409,5 @@ void render(uint32_t time) {
   }
 
   if(dialog_open)
-    draw_dialog(dialog_message, dialog_confirm ? "A: Yes  B: No" : "A: OK");
+    draw_dialog(dialog_message, dialog_confirm);
 }
