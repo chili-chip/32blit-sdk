@@ -116,10 +116,13 @@ static bool parse_file_metadata(const std::string &filename, BlitGameMetadata &m
     // don't bother reading the whole thing if we don't want the images
     auto metadata_len = unpack_images ? *reinterpret_cast<uint16_t *>(buf + 8) : sizeof(RawMetadata);
 
-    uint8_t metadata_buf[0xFFFF];
+    // on the heap: games run on the loader's stack, which may be much smaller than 64k
+    auto metadata_buf = new uint8_t[metadata_len];
     f.read(offset + 10, metadata_len, (char *)metadata_buf);
 
     parse_metadata(reinterpret_cast<char *>(metadata_buf), metadata_len, metadata, unpack_images);
+
+    delete[] metadata_buf;
 
     return true;
   }
