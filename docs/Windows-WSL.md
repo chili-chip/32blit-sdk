@@ -35,7 +35,7 @@ The following requirements enable cross-compile to 32Blit via ARM GCC:
 
 ```
 sudo apt install gcc gcc-arm-none-eabi unzip cmake make python3 python3-pip python3-setuptools
-pip3 install 32blit construct bitstring
+pip3 install -r tools/requirements.txt  # run from the 32blit-sdk checkout
 ```
 
 If you are using the older Ubuntu 18.04-based WSL, you will need a newer toolchain than the one provided:

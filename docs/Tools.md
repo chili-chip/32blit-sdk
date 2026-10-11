@@ -8,6 +8,12 @@ You can install these tools with `pip`:
 pip3 install 32blit
 ```
 
+or, from the root of this repository, with the same version pins CI uses:
+
+```
+pip3 install -r tools/requirements.txt
+```
+
 Head on over to https://github.com/32blit/32blit-tools for further documentation covering the installation of the new tools.
 
 - [Asset Pipeline](#asset-pipeline)
