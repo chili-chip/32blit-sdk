@@ -81,8 +81,12 @@ This produces a `.uf2` file for your game.
 
 1. Connect the console via USB.
 2. Power it off, then hold the top **X button** and press **Power**.
-3. The device should appear as `RPI-RP2` on Linux (`/media/<username>/RPI-RP2`).
+3. The device should appear as `RP2350` on Linux (`/media/<username>/RP2350`).
 4. Copy your `.uf2` file:
+
+```bash
+cp your-game.uf2 /media/$USER/RP2350/
+```
 
 The console will automatically reboot into your game.
 
