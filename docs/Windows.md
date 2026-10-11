@@ -22,13 +22,13 @@ If you have Visual Studio installed you can Modify the installation and select "
 
 Open "Developer Command Prompt for VS 2022." This is where you'll build the 32blit SDK and flash .blit files to your device.
 
-Install the 32blit tools:
+Install the 32blit tools from the SDK's `tools/requirements.txt`, running the command from the root of your `32blit-sdk` checkout. It installs the `32blit` command (which pulls in `construct`, `bitstring` and the other Python dependencies) and pins `bitstring<5`, because bitstring 5 removed `ConstBitStream`, which the tools still use:
 
 ```
-py -m pip install 32blit
+py -m pip install -r tools\requirements.txt
 ```
 
-This may result in a waning similar to:
+This may result in a warning similar to:
 
 ```
 WARNING: The script 32blit.exe is installed in 'C:\Users\[Name]\AppData\Local\Programs\Python\Python39\Scripts' which is not on PATH.

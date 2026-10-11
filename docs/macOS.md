@@ -54,16 +54,23 @@ Run the commands from the root of your `32blit-sdk` checkout, and activate the v
 
 ####  Verifying install
 
+With the venv activated:
+
 ``` shell
 python3 --version
 ```
-(expected output `Python 3.7.x`)
+(expected output `Python 3.x.y`, the version of Homebrew's Python)
+
+``` shell
+python3 -m pip --version
+```
+(expected output `pip x.y.z from /Users/<you>/venvs/32blit/lib/python3.x/site-packages/pip (python 3.x)` or similar; the path must be inside the venv)
 
 and
 ``` shell
-pip3 --version
+32blit version
 ```
-(expected output `pip x.x.x from /usr/local/lib/python3.7/site-packages/pip (python 3.7)` or similar)
+(expected output: the installed 32blit tools version, `0.7.3` or newer)
 
 <a name="gcc"/></a>
 ### Installing `gcc-arm-none-eabi`
