@@ -82,6 +82,14 @@ jobs:
             cmake-args: -D32BLIT_DIR=$GITHUB_WORKSPACE -DPICO_SDK_PATH=$GITHUB_WORKSPACE/pico-sdk -DPICO_BOARD=chilichip_vgc -DPICO_PLATFORM=rp2350-arm-s -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/32blit-sdk/pico2.toolchain -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
             apt-packages: ccache gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib pipx python3-requests
 
+          - os: ubuntu-22.04
+            pico-sdk: true
+            name: VGC (.blit)
+            cache-key: vgc-bl
+            release-suffix: VGC-blit
+            cmake-args: -D32BLIT_DIR=$GITHUB_WORKSPACE -DPICO_SDK_PATH=$GITHUB_WORKSPACE/pico-sdk -DPICO_BOARD=chilichip_vgc -DPICO_PLATFORM=rp2350-arm-s -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/pico2.toolchain -DBLIT_EXECUTABLE_PICO_BLIT=1 -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+            apt-packages: ccache gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib python3-setuptools
+
           - os: macos-14
             name: macOS
             cache-key: macos

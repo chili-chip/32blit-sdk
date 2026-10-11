@@ -60,6 +60,15 @@
 #define PICO_STACK_SIZE 0x8000
 #endif
 
+// --- FLASH ---
+// VGC Zero is built on the Waveshare RP2350-Plus 16MB. Without this the
+// pico2.h default (4 MB) applies, which hides 12 MB from the game area and
+// puts the storage drive at the wrong offset.
+pico_board_cmake_set_default(PICO_FLASH_SIZE_BYTES, (16 * 1024 * 1024))
+#ifndef PICO_FLASH_SIZE_BYTES
+#define PICO_FLASH_SIZE_BYTES (16 * 1024 * 1024)
+#endif
+
 // Include the base Pico 2 board definition
 #include "boards/pico2.h"
 

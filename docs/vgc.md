@@ -88,6 +88,50 @@ The console will automatically reboot into your game.
 
 ---
 
+## Loader and `.blit` games (OS preview)
+
+Besides standalone `.uf2` games, VGC Zero can run the 32blit loader: a small system firmware that stays in flash and installs any number of `.blit` games next to it. This is the base for the VGC Zero OS.
+
+Build the loader (and the stock launcher) from this repository:
+
+```bash
+mkdir build.vgc-blit
+cd build.vgc-blit
+cmake .. \
+  -DPICO_SDK_PATH=../../pico-sdk \
+  -DPICO_BOARD=chilichip_vgc \
+  -DPICO_PLATFORM=rp2350-arm-s \
+  -DCMAKE_TOOLCHAIN_FILE=../pico2.toolchain \
+  -DBLIT_EXECUTABLE_PICO_BLIT=1
+make
+```
+
+This produces `32blit-pico/loader/blit-loader.uf2` and `launcher/launcher.blit`. Build a game as `.blit` by adding `-DBLIT_EXECUTABLE_PICO_BLIT=1` to its own cmake command.
+
+To install:
+
+1. Copy `blit-loader.uf2` to the console in BOOTSEL mode (see above).
+2. With the console running the loader and connected over USB, install the launcher and games over USB serial:
+
+```bash
+32blit install launcher.blit
+32blit install game.blit
+```
+
+Hold **HOME** for one second to leave a game and return to the launcher.
+
+### Memory layout
+
+| Region | VGC Zero |
+| ------ | -------- |
+| Flash 0–256 KB | Loader |
+| Flash 256 KB–12 MB | Installed `.blit` games (64 KB blocks) |
+| Flash 12–16 MB | FAT storage, shown as a USB drive (saves live here) |
+| RAM 0–64 KB | Loader data, heap and the 32 KB core 0 stack that games run on |
+| RAM 64–512 KB | The running game (448 KB, including its 32 KB framebuffer) |
+
+The loader gets 64 KB of RAM instead of upstream's 32 KB so games keep the same 32 KB stack as standalone builds (`board/chilichip_vgc/memmap_blit_loader.ld`, `BLIT_LOADER_RAM_KB`). A `.blit` built against an older SDK expects games to start at 32 KB and must be rebuilt.
+
 ## ChiliChip VGC Zero Board Details
 
 | Feature  | VGC Zero (RP2350)             |
