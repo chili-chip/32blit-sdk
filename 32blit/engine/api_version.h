@@ -1,3 +1,3 @@
 #pragma once
 #define BLIT_API_VERSION_MAJOR 0
-#define BLIT_API_VERSION_MINOR 2
+#define BLIT_API_VERSION_MINOR 3

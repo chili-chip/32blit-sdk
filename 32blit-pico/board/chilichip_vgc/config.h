@@ -25,6 +25,14 @@
 
 #define LED_PIN 16
 
+// Battery sense on the Waveshare RP2350-Plus (WAVESHARE_BAT_ADC_PIN). The
+// divide-by-3 is inferred from Waveshare's demos, not yet measured.
+#define BATTERY_ADC_PIN 29
+#define BATTERY_DIVIDER 3.0f
+
+// Short press of HOME in a game opens the system menu (loader only)
+#define SYSTEM_MENU 1
+
 #define LCD_SCK_PIN 18
 #define LCD_MOSI_PIN 19
 // #define LCD_BACKLIGHT_PIN 12

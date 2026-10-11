@@ -14,6 +14,7 @@
 #include "engine/profiler.hpp"
 #include "engine/running_average.hpp"
 #include "engine/save.hpp"
+#include "engine/system.hpp"
 #include "engine/timer.hpp"
 #include "engine/tweening.hpp"
 #include "engine/version.hpp"

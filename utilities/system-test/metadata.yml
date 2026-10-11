@@ -1,0 +1,10 @@
+title: System Test
+description: Shows the battery, USB and system settings the firmware reports.
+author: chilichip
+version: v1.0.0
+url: https://github.com/chili-chip/32blit-sdk
+category: utility
+splash:
+  file: system-test.png
+icon:
+  file: system-test-icon.png

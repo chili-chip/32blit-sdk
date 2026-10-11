@@ -114,3 +114,8 @@ void set_framebuffer(uint8_t *data, uint32_t max_size, Size max_bounds) {
   max_fb_bounds = max_bounds;
 #endif
 }
+
+// drivers that can change brightness override this
+[[gnu::weak]] void set_display_brightness(uint8_t level) {
+  (void)level;
+}

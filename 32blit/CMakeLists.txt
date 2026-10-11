@@ -11,6 +11,7 @@ set(SOURCES
 	engine/profiler.cpp
   engine/running_average.cpp
   engine/save.cpp
+  engine/system.cpp
 	engine/timer.cpp
 	engine/tweening.cpp
 	engine/version.cpp

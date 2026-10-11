@@ -357,6 +357,10 @@ void ssd1351_set_master_contrast(uint8_t level) {
   command(SSD1351::CONTRAST_MASTER, 1, &v);
 }
 
+void set_display_brightness(uint8_t level) {
+  ssd1351_set_master_contrast(level);
+}
+
 void init_display() {
   frame_buffer = screen_fb;
 

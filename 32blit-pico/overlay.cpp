@@ -37,6 +37,10 @@ void set_render_overlay_enabled(bool enabled) {
   }
 }
 
+bool is_render_overlay_enabled() {
+  return orig_render != nullptr;
+}
+
 void set_overlay_message(std::string_view text) {
   message = text;
 }

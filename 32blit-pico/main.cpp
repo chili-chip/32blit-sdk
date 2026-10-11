@@ -20,7 +20,10 @@
 #include "input.hpp"
 #include "led.hpp"
 #include "multiplayer.hpp"
+#include "power.hpp"
+#include "settings.hpp"
 #include "storage.hpp"
+#include "system_menu.hpp"
 #include "usb.hpp"
 
 #include "engine/api_private.hpp"
@@ -32,6 +35,7 @@ static blit::AudioChannel channels[CHANNEL_COUNT];
 int (*do_tick)(uint32_t time) = blit::tick;
 
 static alarm_id_t home_hold_alarm_id = 0;
+static bool home_held = false;
 
 // override terminate handler to save ~20-30k
 namespace __cxxabiv1 {
@@ -190,6 +194,12 @@ static const blit::APIConst blit_api_const {
 
   ::get_screen_data,
   ::set_framebuffer,
+
+  ::get_battery_level,
+  ::get_battery_voltage,
+  ::is_usb_connected,
+  ::get_system_settings,
+  ::set_system_settings,
 };
 
 [[gnu::section(".bss.api_data")]]
@@ -211,29 +221,44 @@ void disable_user_code() {
   blit::render = ::render;
 }
 
-[[maybe_unused]]
-static int64_t home_hold_callback(alarm_id_t id, void *user_data) {
-  home_hold_alarm_id = 0;
+void quit_to_launcher() {
+  system_menu_reset();
 
   close_open_files();
 
   launch_pre_init();
   ::init(); // re-initialising the loader is effectively a reset
+}
+
+[[maybe_unused]]
+static int64_t home_hold_callback(alarm_id_t id, void *user_data) {
+  home_hold_alarm_id = 0;
+
+  quit_to_launcher();
 
   return 0;
 }
 
 static void check_home_button() {
 #ifdef BUILD_LOADER
-  if((api_data.buttons & Button::HOME) && !home_hold_alarm_id) {
+  if((api_data.buttons & Button::HOME) && !home_held) {
     // start timer for exit/reset
+    home_held = true;
     home_hold_alarm_id = add_alarm_in_ms(1000, home_hold_callback, nullptr, false);
     debugf("home down at %i alarm %i\n", ::now(), home_hold_alarm_id);
-  } else if(!(api_data.buttons & Button::HOME) && home_hold_alarm_id) {
-    // released, cancel timer
-    debugf("home up at %i alarm %i\n", ::now(), home_hold_alarm_id);
-    cancel_alarm(home_hold_alarm_id);
-    home_hold_alarm_id = 0;
+  } else if(!(api_data.buttons & Button::HOME) && home_held) {
+    home_held = false;
+
+    // released before the timer fired: a short press
+    if(home_hold_alarm_id) {
+      debugf("home up at %i alarm %i\n", ::now(), home_hold_alarm_id);
+      cancel_alarm(home_hold_alarm_id);
+      home_hold_alarm_id = 0;
+
+#ifdef SYSTEM_MENU
+      system_menu_toggle();
+#endif
+    }
   }
 #endif
 }
@@ -302,7 +327,9 @@ int main() {
   init_led();
   init_display();
   init_input();
+  init_power();
   init_fs();
+  init_settings();
 #if !defined(ENABLE_CORE1)
   init_audio();
 #endif
@@ -343,8 +370,13 @@ int main() {
     int ms_to_next_update = do_tick(::now());
 
     update_led();
+    update_power(now);
     update_usb();
     update_fs();
+
+    // store settings changed through the API or the system menu
+    if(!system_menu_is_open())
+      save_settings();
     update_multiplayer();
 
     // do requested launch when no user code is running
