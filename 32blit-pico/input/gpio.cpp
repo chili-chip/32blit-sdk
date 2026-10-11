@@ -1,6 +1,7 @@
 // generic GPIO buttons
 #include "input.hpp"
 #include "hardware/gpio.h"
+#include "pico/time.h"
 
 #include "pico/binary_info.h"
 
@@ -72,8 +73,16 @@ void init_gpio_input() {
   #undef BUTTON_BI_DECL
 }
 
+// after a button changes state, ignore it changing again for this long
+// (contact bounce would otherwise look like extra presses and releases)
+static constexpr uint32_t debounce_us = 20000;
+
+static uint32_t debounced_buttons = 0;
+static uint32_t last_change_us[std::size(button_io)];
+
 void update_gpio_input(uint32_t &new_buttons, blit::Vec2 &new_joystick) {
   auto io = gpio_get_all();
+  auto now = time_us_32();
 
   for(size_t i = 0; i < std::size(button_io); i++) {
     // pin not defined, skip
@@ -81,10 +90,15 @@ void update_gpio_input(uint32_t &new_buttons, blit::Vec2 &new_joystick) {
       continue;
 
     bool pin_state = !!(io & (1 << button_io[i]));
+    bool pressed = pin_state == button_active[i];
 
-    if(pin_state == button_active[i])
-      new_buttons |= 1 << i;
+    if(pressed != !!(debounced_buttons & (1 << i)) && now - last_change_us[i] >= debounce_us) {
+      debounced_buttons ^= 1 << i;
+      last_change_us[i] = now;
+    }
   }
+
+  new_buttons |= debounced_buttons;
 }
 
 extern const InputDriver gpio_input_driver {

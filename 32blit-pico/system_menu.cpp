@@ -31,6 +31,7 @@ static const uint8_t volume_step = 10;
 
 static bool menu_open = false;
 static bool resume_pending = false; // resume once all buttons are released
+static bool quit_pending = false;   // quit once all buttons are released, so the launcher doesn't see the press
 static int (*game_tick)(uint32_t time) = nullptr;
 static void (*game_render)(uint32_t time) = nullptr;
 
@@ -62,6 +63,7 @@ static void restore_game() {
   blit::render = game_render;
   menu_open = false;
   resume_pending = false;
+  quit_pending = false;
 
   unmute();
 }
@@ -76,6 +78,14 @@ static int menu_tick(uint32_t time) {
   uint32_t buttons = api_data.buttons;
   uint32_t pressed = buttons & ~last_buttons;
   last_buttons = buttons;
+
+  if(quit_pending) {
+    if(!buttons) {
+      quit_pending = false;
+      quit_to_launcher();
+    }
+    return 10;
+  }
 
   if(resume_pending) {
     // so the game doesn't see the button that closed the menu
@@ -111,7 +121,7 @@ static int menu_tick(uint32_t time) {
     if(selected == Resume)
       resume_pending = true;
     else if(selected == Quit) {
-      quit_to_launcher();
+      quit_pending = true;
       return 10;
     }
   }
