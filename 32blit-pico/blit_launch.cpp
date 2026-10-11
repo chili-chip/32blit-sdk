@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cstring>
 #include <forward_list>
 
@@ -541,6 +542,163 @@ const char *get_launch_path() {
   return launch_path;
 #else
   return nullptr;
+#endif
+}
+
+bool is_launcher_running() {
+#ifdef BUILD_LOADER
+  // about to launch something
+  if(requested_launch_offset)
+    return false;
+
+  // nothing launched, only the loader is running
+  if(!current_game_offset)
+    return true;
+
+  auto meta = get_running_game_metadata();
+  if(!meta)
+    return false;
+
+  auto type_ptr = reinterpret_cast<const char *>(meta + 1);
+  if(memcmp(type_ptr, "BLITTYPE", 8) != 0)
+    return false;
+
+  auto type_meta = reinterpret_cast<const RawTypeMetadata *>(type_ptr + 8);
+  return strncmp(type_meta->category, "launcher", sizeof(type_meta->category)) == 0;
+#else
+  return false;
+#endif
+}
+
+#ifdef BUILD_LOADER
+static uint32_t crc32_update(uint32_t crc, const uint8_t *data, uint32_t len) {
+  crc = ~crc;
+  while(len--) {
+    crc ^= *data++;
+    for(int i = 0; i < 8; i++)
+      crc = (crc >> 1) ^ (0xEDB88320 & -(crc & 1));
+  }
+  return ~crc;
+}
+#endif
+
+InstallResult install_blit_file(const char *path, std::function<void(uint32_t done, uint32_t total)> progress) {
+#ifdef BUILD_LOADER
+  auto file = open_file(path, blit::OpenMode::read);
+  if(!file)
+    return InstallResult::Failed;
+
+  auto fail = [file](InstallResult res) {
+    close_file(file);
+    return res;
+  };
+
+  uint32_t len = get_file_length(file);
+
+  // header + the base address that follows it
+  uint8_t header_buf[sizeof(BlitGameHeader) + 4];
+  if(read_file(file, 0, sizeof(header_buf), (char *)header_buf) != sizeof(header_buf))
+    return fail(InstallResult::NotAGame);
+
+  auto &header = *(BlitGameHeader *)header_buf;
+
+  if(header.magic != blit_game_magic || header.device_id != DEVICE_ID)
+    return fail(InstallResult::NotAGame);
+
+  if(header.api_version_major != blit::api_version_major || header.api_version_minor > blit::api_version_minor)
+    return fail(InstallResult::NeedsUpdate);
+
+  if(header.end < sizeof(header_buf) || header.end > len)
+    return fail(InstallResult::Damaged);
+
+  // metadata is optional, but when it's there it has to be complete
+  RawMetadata meta;
+  RawTypeMetadata type_meta = {};
+  bool have_meta = read_file_metadata(file, meta, type_meta);
+
+  if(have_meta) {
+    uint16_t meta_len = 0;
+    read_file(file, header.end + 8, 2, (char *)&meta_len);
+    if(header.end + 10 + meta_len > len)
+      return fail(InstallResult::Damaged);
+  }
+
+  static uint8_t buf[FLASH_PAGE_SIZE];
+
+  // the metadata checksum covers the code and data before it
+  if(have_meta) {
+    uint32_t crc = 0;
+    for(uint32_t off = 0; off < header.end;) {
+      auto chunk = std::min(uint32_t(FLASH_PAGE_SIZE), header.end - off);
+      if(read_file(file, off, chunk, (char *)buf) != int32_t(chunk))
+        return fail(InstallResult::Failed);
+
+      crc = crc32_update(crc, buf, chunk);
+      off += chunk;
+    }
+
+    if(crc != meta.crc32)
+      return fail(InstallResult::Damaged);
+
+    // this exact build is already installed
+    if(find_installed_blit(meta) != ~0u)
+      return fail(InstallResult::AlreadyInstalled);
+  }
+
+#ifdef PICO_RP2350
+  // relocatable builds go in any free space, make room by removing the old copy if needed
+  uint32_t base = *(uint32_t *)(header_buf + sizeof(BlitGameHeader)) & 0xFFFFFF;
+  if(base == 4 * 1024 * 1024 && !find_flash_offset(len)) {
+    if(have_meta)
+      cleanup_duplicates(meta, 0);
+
+    if(!find_flash_offset(len))
+      return fail(InstallResult::NoSpace);
+  }
+#endif
+
+  BlitWriter writer;
+  writer.init(len);
+
+  for(uint32_t off = 0; off < len;) {
+    auto chunk = std::min(uint32_t(FLASH_PAGE_SIZE), len - off);
+    memset(buf, 0xFF, sizeof(buf));
+
+    if(read_file(file, off, chunk, (char *)buf) != int32_t(chunk))
+      break;
+
+    if(!writer.write(buf, chunk))
+      break;
+
+    off += chunk;
+
+    if(progress && (off % (FLASH_PAGE_SIZE * 16) == 0 || off == len))
+      progress(off, len);
+  }
+
+  close_file(file);
+
+  if(writer.get_remaining() > 0) {
+    // don't leave a partial copy behind
+    if(writer.get_flash_offset())
+      erase_game(writer.get_flash_offset());
+    return InstallResult::Failed;
+  }
+
+  auto flash_offset = writer.get_flash_offset();
+
+  // check what ended up in flash
+  if(have_meta && crc32_update(0, (const uint8_t *)(FLASH_BASE + flash_offset), header.end) != meta.crc32) {
+    erase_game(flash_offset);
+    return InstallResult::Failed;
+  }
+
+  if(have_meta)
+    cleanup_duplicates(meta, flash_offset);
+
+  return InstallResult::Installed;
+#else
+  return InstallResult::Failed;
 #endif
 }
 

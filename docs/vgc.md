@@ -134,6 +134,18 @@ Games can read these through API 0.3 (`32blit/engine/system.hpp`): `get_battery_
 
 `utilities/system-test` shows all of these on screen, and A plays a test tone to check the volume.
 
+### Installing games over USB
+
+Plug the console into a computer while the launcher is showing and a drive named **CHILICHIP** appears (the USB device shows as "ChiliChip Console"). Copy one or more `.blit` files to the top of the drive, then eject it, or unplug the cable. The console installs each game into flash with a progress bar, deletes the installed copies from the drive and returns to the launcher. Files still on the drive at power-on are installed the same way.
+
+- A newer build of an installed game replaces the old one. Saves live in `.blit/<title>/` on the drive, so they are kept.
+- A file that is already installed is just removed from the drive.
+- Errors are shown per file and those files stay on the drive: "Not a ChiliChip game" (not a `.blit`, or built for another device), "Needs a system update" (built for a newer API than the loader), "File damaged" (truncated, or its checksum doesn't match), "Not enough space".
+- While a game is running the drive is read-only, so the computer can't change files the game has open.
+- Nothing is installed while the computer still has the drive mounted, because it caches the drive's contents. Until you eject, the launcher can still start a `.blit` straight from the drive.
+
+This is enabled by `AUTO_INSTALL` in `board/chilichip_vgc/config.h` (`32blit-pico/installer.cpp`, install logic in `install_blit_file()` in `blit_launch.cpp`). The drive label comes from `STORAGE_VOLUME_LABEL` and is applied at boot, so drives formatted earlier are relabelled. `32blit install` over USB serial still works.
+
 ### Memory layout
 
 | Region | VGC Zero |

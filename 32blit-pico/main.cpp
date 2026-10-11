@@ -18,6 +18,7 @@
 #include "display.hpp"
 #include "file.hpp"
 #include "input.hpp"
+#include "installer.hpp"
 #include "led.hpp"
 #include "multiplayer.hpp"
 #include "power.hpp"
@@ -373,6 +374,10 @@ int main() {
     update_power(now);
     update_usb();
     update_fs();
+#if defined(AUTO_INSTALL) && defined(BUILD_LOADER)
+    // install .blit files copied onto the drive
+    update_installer();
+#endif
 
     // store settings changed through the API or the system menu
     if(!system_menu_is_open())
