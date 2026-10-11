@@ -33,6 +33,16 @@
 // Short press of HOME in a game opens the system menu (loader only)
 #define SYSTEM_MENU 1
 
+// .blit files copied onto the USB drive install on the home screen once the
+// drive is ejected, and the drive is read-only while a game runs (loader only)
+#define AUTO_INSTALL 1
+#define CONSOLE_NAME "ChiliChip"
+
+// USB device name ("ChiliChip Console") and drive label (FAT allows 11 characters)
+#define USB_VENDOR_STR "ChiliChip"
+#define USB_PRODUCT_STR "Console"
+#define STORAGE_VOLUME_LABEL "CHILICHIP"
+
 #define LCD_SCK_PIN 18
 #define LCD_MOSI_PIN 19
 // #define LCD_BACKLIGHT_PIN 12

@@ -13,6 +13,11 @@
 #include "file.hpp"
 #include "storage.hpp"
 #include "executable.hpp"
+#include "config.h"
+
+#if defined(AUTO_INSTALL) && defined(BUILD_LOADER)
+#include "installer.hpp"
+#endif
 
 static FATFS fs;
 static bool initialised = false;
@@ -83,13 +88,26 @@ void init_fs() {
   }
 #endif
 
-  if(res != FR_OK)
+  if(res != FR_OK) {
     printf("Failed to mount filesystem! (%i)\n", res);
+    return;
+  }
+
+#ifdef STORAGE_VOLUME_LABEL
+  // name the drive, also relabels drives formatted before the name was set
+  char label[12];
+  if(f_getlabel("", label, nullptr) == FR_OK && strcmp(label, STORAGE_VOLUME_LABEL) != 0)
+    f_setlabel(STORAGE_VOLUME_LABEL);
+#endif
 }
 
 void storage_host_written() {
   host_wrote = true;
   host_write_time = get_absolute_time();
+
+#if defined(AUTO_INSTALL) && defined(BUILD_LOADER)
+  installer_request_scan();
+#endif
 }
 
 void update_fs() {

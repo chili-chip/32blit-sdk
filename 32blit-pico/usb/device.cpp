@@ -5,9 +5,12 @@
 #include "config.h"
 #include "file.hpp"
 #include "storage.hpp"
+#include "blit_launch.hpp"
+#include "installer.hpp"
 
 // msc
 static bool storage_ejected = false;
+static bool storage_changed = false;
 
 void tud_mount_cb() {
   storage_ejected = false;
@@ -28,6 +31,21 @@ void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16
 bool tud_msc_test_unit_ready_cb(uint8_t lun) {
   if(!is_storage_available() || storage_ejected ) {
     tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x3a, 0x00);
+    return false;
+  }
+
+#if defined(AUTO_INSTALL) && defined(BUILD_LOADER)
+  // becoming ready
+  if(installer_active()) {
+    tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x04, 0x01);
+    return false;
+  }
+#endif
+
+  // medium may have changed, makes the host drop its cached copy
+  if(storage_changed) {
+    storage_changed = false;
+    tud_msc_set_sense(lun, SCSI_SENSE_UNIT_ATTENTION, 0x28, 0x00);
     return false;
   }
 
@@ -89,7 +107,20 @@ int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, u
 }
 
 bool tud_msc_is_writable_cb(uint8_t lun) {
+#if defined(AUTO_INSTALL) && defined(BUILD_LOADER)
+  // read-only while a game runs, so the computer can't change files under it
+  if(!is_launcher_running())
+    return false;
+#endif
   return !get_files_open();
+}
+
+bool usb_storage_in_use() {
+  return tud_mounted() && !tud_suspended() && !storage_ejected;
+}
+
+void usb_storage_changed() {
+  storage_changed = true;
 }
 
 // cdc
@@ -101,6 +132,10 @@ void update_usb() {
   tud_task();
 
   usb_cdc_update();
+}
+
+void usb_service() {
+  tud_task();
 }
 
 bool usb_cdc_connected() {

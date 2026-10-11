@@ -175,6 +175,18 @@ void init_usb() {
   tusb_init();
 }
 
+void usb_service() {
+  tuh_task();
+}
+
+// the storage drive is only exposed in device mode
+bool usb_storage_in_use() {
+  return false;
+}
+
+void usb_storage_changed() {
+}
+
 void update_usb() {
   tuh_task();
 

@@ -25,6 +25,22 @@ void *get_type_handler_metadata(const char *filetype);
 
 const char *get_launch_path();
 
+// true when the running app is the launcher (home screen) or nothing has been launched yet
+bool is_launcher_running();
+
+enum class InstallResult {
+  Installed,
+  AlreadyInstalled,
+  NotAGame,       // not a .blit, or built for another device
+  NeedsUpdate,    // built for a newer API than this loader
+  Damaged,        // truncated or checksum mismatch
+  NoSpace,
+  Failed          // read or write error
+};
+
+// installs a .blit from storage into flash, replacing older copies of the same game
+InstallResult install_blit_file(const char *path, std::function<void(uint32_t done, uint32_t total)> progress);
+
 class BlitWriter final {
 public:
   void init(uint32_t file_len);
