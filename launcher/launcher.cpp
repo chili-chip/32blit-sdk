@@ -659,7 +659,21 @@ void render(uint32_t time) {
 void update(uint32_t time) {
 
   if(blit::is_storage_available() != sd_detected) {
+    // re-scan, staying in the current directory if it still exists
+    auto dir = current_directory->name;
     init_lists();
+
+    for(auto it = directory_list.begin(); it != directory_list.end(); ++it) {
+      if(it->name == dir) {
+        if(it != current_directory) {
+          current_directory = it;
+          load_file_list(dir);
+          load_current_game_metadata();
+        }
+        break;
+      }
+    }
+
     sd_detected = blit::is_storage_available();
   }
 

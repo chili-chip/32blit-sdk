@@ -118,6 +118,8 @@ To install:
 32blit install game.blit
 ```
 
+You can also copy `.blit` files onto the console's USB drive. The launcher lists them about half a second after the PC finishes writing, and installs a game into flash when you launch it.
+
 Hold **HOME** for one second to leave a game and return to the launcher.
 
 ### Memory layout
