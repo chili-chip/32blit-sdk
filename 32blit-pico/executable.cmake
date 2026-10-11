@@ -96,6 +96,13 @@ function(blit_executable NAME)
 
         math(EXPR FLASH_OFFSET_BYTES "${PICO_BLIT_OFFSET_KB} * 1024")
 
+        # games use the RAM after the loader's (must match the loader's linker script)
+        if(NOT BLIT_LOADER_RAM_KB)
+            set(BLIT_LOADER_RAM_KB 32)
+        endif()
+        math(EXPR BLIT_GAME_RAM_ORIGIN "0x20000000 + ${BLIT_LOADER_RAM_KB} * 1024" OUTPUT_FORMAT HEXADECIMAL)
+        math(EXPR BLIT_GAME_RAM_LENGTH_KB "512 - ${BLIT_LOADER_RAM_KB}")
+
         # customise linker script
         configure_file(${LINKER_SCRIPT} memmap_blit.ld)
         set(LINKER_SCRIPT_OUT ${CMAKE_CURRENT_BINARY_DIR}/memmap_blit.ld)

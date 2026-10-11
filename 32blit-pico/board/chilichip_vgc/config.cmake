@@ -17,3 +17,9 @@ set(BLIT_ENABLE_CORE1 TRUE)
 
 # Default Pico memmap puts core 0's stack in 4 KiB scratch Y. Citsy needs more.
 set(BLIT_LINKER_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/memmap_ram_stack.ld)
+
+# Loader + .blit games: the loader's core 0 stack is shared with the running
+# game, so it needs the same 32 KiB as standalone builds. The loader takes the
+# first 64 KiB of RAM (data, heap, stack) and games start after it.
+set(BLIT_LOADER_LINKER_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/memmap_blit_loader.ld)
+set(BLIT_LOADER_RAM_KB 64)

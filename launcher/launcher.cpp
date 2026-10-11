@@ -116,10 +116,13 @@ static bool parse_file_metadata(const std::string &filename, BlitGameMetadata &m
     // don't bother reading the whole thing if we don't want the images
     auto metadata_len = unpack_images ? *reinterpret_cast<uint16_t *>(buf + 8) : sizeof(RawMetadata);
 
-    uint8_t metadata_buf[0xFFFF];
+    // on the heap: games run on the loader's stack, which may be much smaller than 64k
+    auto metadata_buf = new uint8_t[metadata_len];
     f.read(offset + 10, metadata_len, (char *)metadata_buf);
 
     parse_metadata(reinterpret_cast<char *>(metadata_buf), metadata_len, metadata, unpack_images);
+
+    delete[] metadata_buf;
 
     return true;
   }
@@ -656,7 +659,21 @@ void render(uint32_t time) {
 void update(uint32_t time) {
 
   if(blit::is_storage_available() != sd_detected) {
+    // re-scan, staying in the current directory if it still exists
+    auto dir = current_directory->name;
     init_lists();
+
+    for(auto it = directory_list.begin(); it != directory_list.end(); ++it) {
+      if(it->name == dir) {
+        if(it != current_directory) {
+          current_directory = it;
+          load_file_list(dir);
+          load_current_game_metadata();
+        }
+        break;
+      }
+    }
+
     sd_detected = blit::is_storage_available();
   }
 

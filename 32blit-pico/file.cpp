@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "pico/binary_info.h"
+#include "pico/time.h"
 
 #include "ff.h"
 #include "diskio.h"
@@ -15,6 +16,11 @@
 
 static FATFS fs;
 static bool initialised = false;
+
+// the USB host wrote to storage behind fatfs' back, remount once it goes quiet
+static bool host_wrote = false;
+static absolute_time_t host_write_time;
+static const uint32_t host_write_settle_ms = 500;
 
 // fatfs io funcs
 DSTATUS disk_initialize(BYTE pdrv) {
@@ -79,6 +85,31 @@ void init_fs() {
 
   if(res != FR_OK)
     printf("Failed to mount filesystem! (%i)\n", res);
+}
+
+void storage_host_written() {
+  host_wrote = true;
+  host_write_time = get_absolute_time();
+}
+
+void update_fs() {
+  if(!host_wrote || get_files_open())
+    return;
+
+  if(absolute_time_diff_us(host_write_time, get_absolute_time()) < host_write_settle_ms * 1000)
+    return;
+
+  // drop cached sectors and re-read the volume
+  auto res = f_mount(&fs, "", 1);
+  if(res != FR_OK)
+    printf("Failed to remount filesystem! (%i)\n", res);
+
+  host_wrote = false;
+}
+
+bool is_fs_available() {
+  // report a change while the host is writing so a launcher re-scans after the remount
+  return !host_wrote && is_storage_available();
 }
 
 static char save_path[32]; // max game title length is 24 + ".blit/" + "/"

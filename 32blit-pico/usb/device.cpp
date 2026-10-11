@@ -62,6 +62,8 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void *buff
 int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t *buffer, uint32_t bufsize) {
   (void) lun;
 
+  storage_host_written();
+
   return storage_write(lba, offset, buffer, bufsize);
 }
 

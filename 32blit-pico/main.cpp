@@ -152,7 +152,7 @@ static const blit::APIConst blit_api_const {
   ::rename_file,
   ::remove_file,
   ::get_save_path,
-  ::is_storage_available,
+  ::is_fs_available,
 
   nullptr, // enable_us_timer
   ::get_us_timer,
@@ -344,6 +344,7 @@ int main() {
 
     update_led();
     update_usb();
+    update_fs();
     update_multiplayer();
 
     // do requested launch when no user code is running
