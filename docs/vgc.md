@@ -122,6 +122,18 @@ You can also copy `.blit` files onto the console's USB drive. The launcher lists
 
 Hold **HOME** for one second to leave a game and return to the launcher.
 
+### System menu, battery and settings
+
+Press **HOME** briefly in a game to pause it and open the system menu: resume, volume, brightness, battery and quit to home. Up and down pick an item, left and right change volume and brightness, A selects and B or HOME resumes. Holding HOME still quits straight to the launcher. The menu doesn't open over the launcher itself.
+
+The loader reads the battery on GPIO29 four times a second and smooths it (`32blit-pico/power.cpp`). `BATTERY_DIVIDER` in `board/chilichip_vgc/config.h` assumes the board's divider is ÷3, which is inferred from Waveshare's demos and still needs measuring against a multimeter, as does the percentage curve. "USB connected" means a computer has enumerated the console; a charger alone doesn't count.
+
+Brightness (0–15, panel contrast) and volume (0–100 %) are stored in `.system/settings.bin` on the USB drive and applied by the loader to every game, so games need no code for them. Standalone `.uf2` builds read the same file.
+
+Games can read these through API 0.3 (`32blit/engine/system.hpp`): `get_battery_level()`, `get_battery_voltage()`, `is_usb_connected()` and `get_system_settings()`. `set_system_settings()` is for launchers and settings apps. A game built against API 0.3 needs a loader with API 0.3; older games keep working on the new loader.
+
+`utilities/system-test` shows all of these on screen, and A plays a test tone to check the volume.
+
 ### Memory layout
 
 | Region | VGC Zero |

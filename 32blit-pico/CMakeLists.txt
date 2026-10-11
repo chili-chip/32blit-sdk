@@ -18,12 +18,15 @@ target_sources(BlitHalPico INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/main.cpp
     ${CMAKE_CURRENT_LIST_DIR}/multiplayer.cpp
     ${CMAKE_CURRENT_LIST_DIR}/overlay.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/power.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/settings.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/system_menu.cpp
     ${CMAKE_CURRENT_LIST_DIR}/usb.cpp
     ${CMAKE_CURRENT_LIST_DIR}/usb_descriptors.c
 )
 
 target_link_libraries(BlitHalPico INTERFACE
-    hardware_dma hardware_i2c hardware_pio hardware_pwm hardware_spi
+    hardware_adc hardware_dma hardware_i2c hardware_pio hardware_pwm hardware_spi
     pico_multicore pico_stdlib pico_unique_id pico_rand
     tinyusb_device
     FatFsBlitAPI

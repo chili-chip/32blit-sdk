@@ -33,6 +33,10 @@ void display_mode_changed(blit::ScreenMode new_mode, blit::SurfaceTemplate &new_
 /// the OLED without a software black veil (which cannot change PWM rate).
 void ssd1351_set_master_contrast(uint8_t level);
 
+/// System brightness, 0 (dimmest) to 15. Does nothing unless the display
+/// driver supports it.
+void set_display_brightness(uint8_t level);
+
 blit::SurfaceInfo &set_screen_mode(blit::ScreenMode mode);
 bool set_screen_mode_format(blit::ScreenMode new_mode, blit::SurfaceTemplate &new_surf_template);
 

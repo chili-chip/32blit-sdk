@@ -8,6 +8,7 @@
 #include "file.hpp"
 #include "../audio/audio.hpp"
 #include "../engine/input.hpp"
+#include "../engine/system.hpp"
 #include "../engine/version.hpp"
 #include "../graphics/jpeg.hpp"
 #include "../graphics/surface.hpp"
@@ -150,6 +151,13 @@ namespace blit {
     // low level framebuffer
     uint8_t *(*get_screen_data)(); // used to get current screen.data before render if firmware does page-flipping
     void (*set_framebuffer)(uint8_t *data, uint32_t max_size, Size max_bounds); // pass framebuffer over if allocated on the "user" side of the API
+
+    // system services (added in 0.3)
+    int (*get_battery_level)();
+    uint16_t (*get_battery_voltage)();
+    bool (*is_usb_connected)();
+    bool (*get_system_settings)(SystemSettings &settings);
+    bool (*set_system_settings)(const SystemSettings &settings);
   };
 
   struct APIData {
@@ -177,7 +185,7 @@ namespace blit {
     // raw i2c access
     void (*i2c_completed)(uint8_t address, uint8_t reg, const uint8_t *data, uint16_t len); // callback when done
 
-    COMPAT_PAD(uintptr_t, pad5, 7);
+    COMPAT_PAD(uintptr_t, pad5, 12); // includes the system services added in 0.3
   };
 
 #ifdef BLIT_API_SPLIT_COMPAT

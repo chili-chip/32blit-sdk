@@ -377,6 +377,13 @@ void blit_init() {
   api.set_screen_palette = display::set_screen_palette;
   api.set_screen_mode_format = display::set_screen_mode_format;
 
+  // system services aren't implemented here, the API area isn't zeroed
+  api.get_battery_level = nullptr;
+  api.get_battery_voltage = nullptr;
+  api.is_usb_connected = nullptr;
+  api.get_system_settings = nullptr;
+  api.set_system_settings = nullptr;
+
   display::set_screen_mode(blit::lores);
 
   blit::update = ::update;
