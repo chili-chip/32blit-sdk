@@ -2,17 +2,15 @@
 
 The individual asset tools have been deprecated in favour of https://github.com/32blit/32blit-tools which installs `32blit` or `32blit.exe` command on Linux/Mac or Windows respectively.
 
-You can install these tools with `pip`:
+Install them from the root of this repository with the SDK's requirements file, which is what CI uses:
 
 ```
-pip3 install 32blit
+python3 -m pip install -r tools/requirements.txt
 ```
 
-or, from the root of this repository, with the same version pins CI uses:
+Use the requirements file rather than a bare `pip install 32blit`. It pins `bitstring<5`, because bitstring 5 removed `ConstBitStream`, which the 32blit tools still import, so an unpinned install pulls in bitstring 5 and the tools fail. It also requires the minimum `32blit` version the SDK's CMake checks for.
 
-```
-pip3 install -r tools/requirements.txt
-```
+If your Python refuses to install packages system-wide ("externally-managed-environment", [PEP 668](https://peps.python.org/pep-0668/), the default on Homebrew and current Debian/Ubuntu), install into a virtual environment first, as described in the [macOS](macOS.md#installing-pip3-dependecies) and [Linux](Linux.md#prerequisites) guides.
 
 Head on over to https://github.com/32blit/32blit-tools for further documentation covering the installation of the new tools.
 
@@ -150,7 +148,7 @@ python -m ttblit pack --force --config $(ProjectDir)assets.yml --output $(Projec
 ```
 To add the build step right click the project and click properties. From there go to build events and paste the command into the command line text box.
 
-If the step is failing to complete then make sure that both python and the 32blit pip package is installed. 
+If the step is failing to complete then make sure that python is installed and that the 32blit tools are installed from `tools/requirements.txt` (see above). 
 
 After the build completes you will want to add the two files it generates to the project. (assets.cpp and assets.hpp).
 Right click the project go to add then existing item and choose the two files from the project directory.

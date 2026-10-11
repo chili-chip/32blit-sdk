@@ -1,7 +1,9 @@
 # Python packages for the 32blit asset/packaging tools used by the SDK build.
-# Install with: python3 -m pip install -r tools/requirements.txt
+# Install with (from the root of the 32blit-sdk checkout):
+#   python3 -m pip install -r tools/requirements.txt
 #
 # 32blit-tools (the `32blit` command) pulls in construct, bitstring, Pillow, etc.
-32blit
+# Keep the minimum in sync with BLIT_MINIMUM_TOOLS_VERSION in 32blit-config.cmake.
+32blit>=0.7.3
 # bitstring 5 removed ConstBitStream, which the 32blit tools still import.
 bitstring<5

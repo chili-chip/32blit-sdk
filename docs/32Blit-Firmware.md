@@ -34,7 +34,7 @@ The rest of these instructions cover building the firmware from source.
 In order to use the 32blit firmware, you will need to:
 
 1. Build and install the 32Blit firmware (if you don't have it already)
-2. Install the 32blit tools `pip install 32blit`
+2. Install the 32blit tools from the SDK checkout with `python3 -m pip install -r tools/requirements.txt` (see your platform guide below for the virtual environment setup)
 3. Flash the firmware and a launcher to your 32Blit
 
 You must make sure you have an ARM GCC cross-compile environment set up on your computer, refer to the relevant documentation below:

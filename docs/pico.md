@@ -53,30 +53,30 @@ You'll need a compiler and a few other dependencies to get started building C++ 
 
 ```
 sudo apt install git gcc g++ gcc-arm-none-eabi cmake make \
-python3 python3-pip python3-setuptools \
+python3 python3-pip python3-setuptools python3-venv \
 libsdl2-dev libsdl2-image-dev libsdl2-net-dev unzip
 ```
 
-And the 32blit tools:
-
-```
-pip3 install 32blit
-```
-
-If pip gives you warnings about 32blit being installed in a directory not on PATH, make sure you add it, eg:
-
-```
-export PATH=$PATH:~/.local/bin
-```
-
-You might also want to add this to the bottom of your `~/.bashrc`.
-
-And finally you should fetch the 32blit SDK and examples:
+Next, fetch the 32blit SDK and examples:
 
 ```
 git clone https://github.com/32blit/32blit-sdk
 git clone https://github.com/32blit/32blit-examples
 ```
+
+And finally install the 32blit tools from the SDK's `tools/requirements.txt`. It installs the `32blit` command (which pulls in `construct`, `bitstring` and the other Python dependencies) and pins `bitstring<5`, because bitstring 5 removed `ConstBitStream`, which the tools still use.
+
+Recent distributions (Debian 12, Ubuntu 23.04 and later) refuse `pip install` outside a virtual environment ("externally-managed-environment", [PEP 668](https://peps.python.org/pep-0668/)), so create one first:
+
+```
+cd 32blit-sdk
+python3 -m venv ~/venvs/32blit
+source ~/venvs/32blit/bin/activate
+python3 -m pip install -r tools/requirements.txt
+cd ..
+```
+
+Activate the venv (`source ~/venvs/32blit/bin/activate`) in every new terminal before building.
 
 ### Fetch Pico SDK Automatically (Quick-Start)
 

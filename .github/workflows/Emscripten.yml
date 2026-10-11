@@ -29,9 +29,16 @@ jobs:
 
     - name: Install deps
       run: |
-        sudo apt update && sudo apt install doxygen graphviz pipx
-        pipx install 32blit
-        pipx inject --force 32blit "bitstring<5"
+        sudo apt update && sudo apt install doxygen graphviz
+
+    - name: Install Python Dependencies
+      shell: bash
+      run: |
+        python3 -m venv .venv
+        source .venv/bin/activate
+        python -m pip install -r tools/requirements.txt
+        echo "$VIRTUAL_ENV/bin" >> $GITHUB_PATH
+        echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> $GITHUB_ENV
 
     - name: Setup cache
       id: cache-system-libraries
