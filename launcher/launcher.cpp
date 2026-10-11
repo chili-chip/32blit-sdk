@@ -35,11 +35,18 @@ constexpr uint32_t qspi_flash_sector_size = 64 * 1024;
 static Screen current_screen = Screen::main;
 
 static bool show_fps = false;
+static bool a_pressed_here = false;
 static bool sd_detected = true;
 static Vec2 file_list_scroll_offset(10.0f, 0.0f);
 static Point game_info_offset(120, 20);
 static Point game_actions_offset(game_info_offset.x + 128 + 8, 28);
 static float directory_list_scroll_offset = 0.0f;
+
+// narrow screens (VGC Zero, 128x128) get a single column layout: directory tabs on top,
+// game list in the middle and a short info strip at the bottom
+static bool compact = false;
+constexpr int compact_header_h = 14;
+constexpr int compact_footer_h = 22;
 
 static std::vector<GameInfo> game_list;
 static std::list<DirectoryInfo> directory_list;
@@ -82,7 +89,7 @@ static void insertion_sort(Iterator first, Iterator last, Compare comp) {
   }
 }
 
-static bool parse_file_metadata(const std::string &filename, BlitGameMetadata &metadata, bool unpack_images = false) {
+static bool parse_file_metadata(const std::string &filename, BlitGameMetadata &metadata, bool unpack_images = false, bool *is_launcher = nullptr) {
   blit::File f(filename);
 
   if(!f.is_open())
@@ -123,6 +130,14 @@ static bool parse_file_metadata(const std::string &filename, BlitGameMetadata &m
     parse_metadata(reinterpret_cast<char *>(metadata_buf), metadata_len, metadata, unpack_images);
 
     delete[] metadata_buf;
+
+    if(is_launcher) {
+      // the type block follows the raw metadata
+      char type_buf[8 + sizeof(RawTypeMetadata::category)] = {};
+      f.read(offset + 10 + sizeof(RawMetadata), sizeof(type_buf), type_buf);
+
+      *is_launcher = memcmp(type_buf, "BLITTYPE", 8) == 0 && strncmp(type_buf + 8, "launcher", sizeof(RawTypeMetadata::category)) == 0;
+    }
 
     return true;
   }
@@ -170,6 +185,14 @@ static void load_file_list(const std::string &directory) {
 
       if(ext == "bmp" || ext == "blim")
         return true;
+    }
+
+    // launchers aren't games, don't list them
+    if(res != CanLaunchResult::UnknownType && file.name.size() > 5 && file.name.compare(file.name.size() - 5, 5, ".blit") == 0) {
+      BlitGameMetadata meta;
+      bool launcher = false;
+      if(parse_file_metadata(path, meta, false, &launcher) && launcher)
+        return false;
     }
 
     // will filter incompatible later
@@ -350,9 +373,32 @@ static void init_lists() {
   load_current_game_metadata();
 }
 
+// same check the loader uses to find the launcher
+static bool is_launcher_image(const uint8_t *ptr) {
+  auto header = (const BlitGameHeader *)ptr;
+
+  if(header->magic != blit_game_magic)
+    return false;
+
+  auto metadata_ptr = ptr + header->end;
+
+  if(memcmp(metadata_ptr, "BLITMETA", 8) != 0)
+    return false;
+
+  metadata_ptr += 10 + sizeof(RawMetadata);
+
+  if(memcmp(metadata_ptr, "BLITTYPE", 8) != 0)
+    return false;
+
+  return strncmp((const char *)metadata_ptr + 8, "launcher", sizeof(RawTypeMetadata::category)) == 0;
+}
+
 static void scan_flash() {
   if(api.list_installed_games) {
     api.list_installed_games([](const uint8_t *ptr, uint32_t block, uint32_t size){
+      if(is_launcher_image(ptr))
+        return;
+
       File::add_buffer_file("flash:/" + std::to_string(block) + ".blit", ptr, size);
     });
   }
@@ -362,8 +408,10 @@ void init() {
   set_screen_mode(ScreenMode::hires);
   screen.clear();
 
+  compact = screen.bounds.w < 200;
+
   // shrink the filename column on narrower screens
-  if(screen.bounds.w < game_actions_offset.x + 24) {
+  if(!compact && screen.bounds.w < game_actions_offset.x + 24) {
     int diff = (game_actions_offset.x + 24) - screen.bounds.w;
     game_info_offset.x -= diff;
     game_actions_offset.x -= diff;
@@ -476,16 +524,21 @@ static void render_directory_list() {
   if(directory_list.empty())
     return;
 
-  int width = screen.bounds.w - game_info_offset.x - 10;
+  const int list_x = compact ? 0 : game_info_offset.x;
+  const int y0 = compact ? 1 : 5;
+  int width = compact ? screen.bounds.w : screen.bounds.w - game_info_offset.x - 10;
 
-  // darken behind if showing screenshot
-  if(screenshot) {
+  if(compact) {
+    screen.pen = theme.color_overlay;
+    screen.rectangle(Rect(0, 0, screen.bounds.w, compact_header_h));
+  } else if(screenshot) {
+    // darken behind if showing screenshot
     screen.pen = theme.color_background;
     screen.pen.a = 150;
     screen.rectangle(Rect(game_info_offset.x - 10, 0, width + 20, 20));
   }
 
-  screen.clip = Rect(game_info_offset.x, 5, width, text_align_height);
+  screen.clip = Rect(list_x, y0, width, text_align_height);
 
   for(auto &directory : directory_list) {
     if(directory.name == current_directory->name)
@@ -493,8 +546,8 @@ static void render_directory_list() {
     else
       screen.pen = theme.color_text;
 
-    int x = 120 + (width / 2) + directory.x - directory_list_scroll_offset;
-    screen.text(directory.name == "/" ? "ROOT" : directory.name, launcher_font, Rect(x, 5, width, text_align_height), true, TextAlign::center_v);
+    int x = list_x + (width / 2) + directory.x - directory_list_scroll_offset;
+    screen.text(directory.name == "/" ? "ROOT" : directory.name, launcher_font, Rect(x, y0, width, text_align_height), true, TextAlign::center_v);
   }
 
   screen.clip = Rect(Point(0, 0), screen.bounds);
@@ -515,12 +568,16 @@ static void render_file_list() {
   } else
     screen.pen = theme.color_overlay;
 
-  screen.rectangle(Rect(0, 0, game_info_offset.x - 10, screen.bounds.h));
+  const int list_w = compact ? screen.bounds.w : game_info_offset.x - 10;
+  const int list_y = compact ? compact_header_h : 0;
+  const int list_h = compact ? screen.bounds.h - compact_header_h - compact_footer_h : screen.bounds.h;
 
-  screen.clip = Rect(0, 0, game_info_offset.x - 20, screen.bounds.h);
+  screen.rectangle(Rect(0, list_y, list_w, list_h));
+
+  screen.clip = Rect(0, list_y, compact ? list_w : list_w - 10, list_h);
   int title_w = screen.clip.w - file_list_scroll_offset.x;
 
-  int y = (screen.bounds.h / 2) - 5 - file_list_scroll_offset.y;
+  int y = list_y + (list_h / 2) - 5 - file_list_scroll_offset.y;
   int i = 0;
 
   for(auto &file : game_list) {
@@ -547,6 +604,29 @@ static void render_screenshot() {
   } else {
     screen.stretch_blit(screenshot, Rect(Point(0, 0), screenshot->bounds), Rect(Point(0, 0), screen.bounds));
   }
+}
+
+static void render_game_info_compact() {
+  const int y = screen.bounds.h - compact_footer_h;
+
+  screen.pen = theme.color_overlay;
+  screen.rectangle(Rect(0, y, screen.bounds.w, compact_footer_h));
+
+  if(!selected_game.can_launch) {
+    screen.pen = {255, 80, 80};
+    screen.text("INCOMPATIBLE", minimal_font, Point(2, y + 3));
+  } else {
+    screen.pen = theme.color_accent;
+    screen.text(selected_game_metadata.author, minimal_font, Rect(2, y + 3, screen.bounds.w - 4, 8), true, TextAlign::top_left);
+  }
+
+  char buf[32];
+  snprintf(buf, sizeof(buf), "%s %i blk", selected_game_metadata.version.c_str(), calc_num_blocks(selected_game.size));
+  screen.pen = theme.color_text;
+  screen.text(buf, minimal_font, Point(2, y + 12));
+
+  // A runs the game, X deletes it
+  screen.text(selected_game.can_launch ? "A run X del" : "X del", minimal_font, Point(screen.bounds.w - 2, y + 12), true, TextAlign::top_right);
 }
 
 static void render_game_info() {
@@ -614,7 +694,10 @@ void render(uint32_t time) {
   }
 
   // current file info/actions
-  if(!game_list.empty()) {
+  if(!game_list.empty() && compact) {
+    if(current_screen != Screen::screenshot)
+      render_game_info_compact();
+  } else if(!game_list.empty()) {
     // delete
     screen.sprite(2, Point(game_actions_offset.x, game_actions_offset.y));
     screen.sprite(0, Point(game_actions_offset.x + 10, game_actions_offset.y));
@@ -677,7 +760,16 @@ void update(uint32_t time) {
     sd_detected = blit::is_storage_available();
   }
 
-  bool button_a = buttons.released & Button::A;
+  // launch on release, but only if the press happened here: otherwise the A that
+  // chose "quit to home" in a game's system menu would launch the game again
+  if(buttons.pressed & Button::A)
+    a_pressed_here = true;
+
+  bool button_a = (buttons.released & Button::A) && a_pressed_here;
+
+  if(buttons.released & Button::A)
+    a_pressed_here = false;
+
   bool button_b = buttons.pressed & Button::B;
   bool button_x = buttons.pressed & Button::X;
   bool button_y = buttons.pressed & Button::Y;
