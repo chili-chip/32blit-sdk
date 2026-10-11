@@ -31,6 +31,7 @@ jobs:
       run: |
         sudo apt update && sudo apt install doxygen graphviz pipx
         pipx install 32blit
+        pipx inject --force 32blit "bitstring<5"
 
     - name: Setup cache
       id: cache-system-libraries
