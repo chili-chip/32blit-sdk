@@ -9,6 +9,7 @@
 #include "pico/binary_info.h"
 #include "pico/multicore.h"
 #include "pico/rand.h"
+#include "pico/unique_id.h"
 #include "pico/stdlib.h"
 
 #include "audio.hpp"
@@ -126,6 +127,18 @@ static GameMetadata get_metadata() {
   return ret;
 }
 
+static bool get_system_info(SystemInfo &info) {
+  info = SystemInfo();
+  strncpy(info.firmware_version, get_version_string(), sizeof(info.firmware_version) - 1);
+  pico_get_unique_board_id_string(info.serial, sizeof(info.serial));
+
+#ifdef BUILD_LOADER
+  get_app_flash_usage(info.app_flash_total, info.app_flash_used);
+#endif
+  get_storage_usage(info.storage_total, info.storage_free);
+  return true;
+}
+
 static uint8_t *get_screen_data() {
   return screen.data;
 }
@@ -201,6 +214,8 @@ static const blit::APIConst blit_api_const {
   ::is_usb_connected,
   ::get_system_settings,
   ::set_system_settings,
+
+  ::get_system_info,
 };
 
 [[gnu::section(".bss.api_data")]]

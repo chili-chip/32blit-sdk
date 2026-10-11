@@ -146,6 +146,18 @@ Plug the console into a computer while the launcher is showing and a drive named
 
 This is enabled by `AUTO_INSTALL` in `board/chilichip_vgc/config.h` (`32blit-pico/installer.cpp`, install logic in `install_blit_file()` in `blit_launch.cpp`). The drive label comes from `STORAGE_VOLUME_LABEL` and is applied at boot, so drives formatted earlier are relabelled. `32blit install` over USB serial still works.
 
+### Home screen (`vgc-os`)
+
+`vgc-os/` is the console's home screen, a `.blit` with category `launcher` titled "ChiliChip OS". Copy `vgc-os.blit` onto the drive like a game. Installing a launcher removes any other installed launcher, so it replaces the stock 32blit launcher (and copying `launcher.blit` back swaps them again).
+
+- A 12 px status bar shows the battery level and a plug icon while USB is connected.
+- The carousel shows one cover per installed game: the selected game's splash image large in the middle, its neighbours smaller at the edges. Left and right scroll, A plays. Games without a splash get a coloured card with their title.
+- Games that have never been played come first (so new installs show up first), then the rest from most recently played. The order is kept in the home screen's save.
+- Y opens game info: author, version, size and description, with Play, Delete game and Delete save data. Deleting a game keeps its save data.
+- The last tile, or MENU, opens Settings: brightness, volume, screen sleep (stored now, applied in a later milestone), the games list with sizes, storage used and free for games and for the USB drive, and About with the OS version, firmware version and serial number.
+
+Storage and About use `get_system_info()`, added in API 0.4 (`32blit/engine/system.hpp`). On desktop builds the home screen lists the `.blit` files next to the executable instead of installed games, which is handy for working on the UI.
+
 ### Memory layout
 
 | Region | VGC Zero |

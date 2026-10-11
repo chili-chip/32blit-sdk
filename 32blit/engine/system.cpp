@@ -21,4 +21,8 @@ namespace blit {
   bool set_system_settings(const SystemSettings &settings) {
     return api.set_system_settings ? api.set_system_settings(settings) : false;
   }
+
+  bool get_system_info(SystemInfo &info) {
+    return api.get_system_info ? api.get_system_info(info) : false;
+  }
 }

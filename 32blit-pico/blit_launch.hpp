@@ -25,6 +25,9 @@ void *get_type_handler_metadata(const char *filetype);
 
 const char *get_launch_path();
 
+// bytes of flash for installed games, and how much of it is in use
+void get_app_flash_usage(uint32_t &total, uint32_t &used);
+
 // true when the running app is the launcher (home screen) or nothing has been launched yet
 bool is_launcher_running();
 

@@ -545,6 +545,16 @@ const char *get_launch_path() {
 #endif
 }
 
+void get_app_flash_usage(uint32_t &total, uint32_t &used) {
+  // the loader is in the first 256k
+  total = flash_end - 256 * 1024;
+  used = 0;
+
+  list_installed_games([&used](const uint8_t *, uint32_t, uint32_t size) {
+    used += calc_num_blocks(size) * game_block_size;
+  });
+}
+
 bool is_launcher_running() {
 #ifdef BUILD_LOADER
   // about to launch something
@@ -579,6 +589,35 @@ static uint32_t crc32_update(uint32_t crc, const uint8_t *data, uint32_t len) {
       crc = (crc >> 1) ^ (0xEDB88320 & -(crc & 1));
   }
   return ~crc;
+}
+#endif
+
+#ifdef BUILD_LOADER
+static bool is_launcher_at(uint32_t offset) {
+  auto header = (const BlitGameHeader *)(FLASH_BASE + offset);
+  auto meta = (const char *)(FLASH_BASE + offset + header->end);
+
+  if(memcmp(meta, "BLITMETA", 8) != 0 || memcmp(meta + 10 + sizeof(RawMetadata), "BLITTYPE", 8) != 0)
+    return false;
+
+  auto type_meta = (const RawTypeMetadata *)(meta + 10 + sizeof(RawMetadata) + 8);
+  return strncmp(type_meta->category, "launcher", sizeof(type_meta->category)) == 0;
+}
+
+static void erase_other_launchers(uint32_t keep_offset) {
+  for(uint32_t off = 0; off < flash_end;) {
+    auto size = get_installed_file_size(off);
+
+    if(!size) {
+      off += game_block_size;
+      continue;
+    }
+
+    if(off != keep_offset && is_launcher_at(off))
+      erase_game(off);
+
+    off += calc_num_blocks(size) * game_block_size;
+  }
 }
 #endif
 
@@ -695,6 +734,10 @@ InstallResult install_blit_file(const char *path, std::function<void(uint32_t do
 
   if(have_meta)
     cleanup_duplicates(meta, flash_offset);
+
+  // there's one home screen, a new launcher replaces any other
+  if(strncmp(type_meta.category, "launcher", sizeof(type_meta.category)) == 0)
+    erase_other_launchers(flash_offset);
 
   return InstallResult::Installed;
 #else
