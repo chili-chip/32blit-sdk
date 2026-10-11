@@ -158,6 +158,9 @@ namespace blit {
     bool (*is_usb_connected)();
     bool (*get_system_settings)(SystemSettings &settings);
     bool (*set_system_settings)(const SystemSettings &settings);
+
+    // added in 0.4
+    bool (*get_system_info)(SystemInfo &info);
   };
 
   struct APIData {
@@ -185,7 +188,7 @@ namespace blit {
     // raw i2c access
     void (*i2c_completed)(uint8_t address, uint8_t reg, const uint8_t *data, uint16_t len); // callback when done
 
-    COMPAT_PAD(uintptr_t, pad5, 12); // includes the system services added in 0.3
+    COMPAT_PAD(uintptr_t, pad5, 13); // includes the system services added in 0.3 and 0.4
   };
 
 #ifdef BLIT_API_SPLIT_COMPAT

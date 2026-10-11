@@ -383,6 +383,7 @@ void blit_init() {
   api.is_usb_connected = nullptr;
   api.get_system_settings = nullptr;
   api.set_system_settings = nullptr;
+  api.get_system_info = nullptr;
 
   display::set_screen_mode(blit::lores);
 

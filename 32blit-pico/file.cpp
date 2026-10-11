@@ -130,6 +130,19 @@ bool is_fs_available() {
   return !host_wrote && is_storage_available();
 }
 
+bool get_storage_usage(uint32_t &total, uint32_t &free) {
+  DWORD free_clusters;
+  FATFS *fs_ptr;
+
+  if(f_getfree("", &free_clusters, &fs_ptr) != FR_OK)
+    return false;
+
+  uint32_t cluster_size = fs_ptr->csize * FF_MIN_SS;
+  total = (fs_ptr->n_fatent - 2) * cluster_size;
+  free = free_clusters * cluster_size;
+  return true;
+}
+
 static char save_path[32]; // max game title length is 24 + ".blit/" + "/"
 
 const char *get_save_path() {
