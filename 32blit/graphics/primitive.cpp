@@ -171,21 +171,36 @@ namespace blit {
   }
 
   /**
-   * TODO: Document this function
+   * Edge function used by the triangle rasteriser: twice the signed area of the triangle `p1`, `p2`, `p3`.
    *
-   * \param[in] p1
-   * \param[in] p2
-   * \param[in] p3
+   * This is the z component of the cross product `(p2 - p1) x (p3 - p1)`. In screen coordinates
+   * (y pointing down) the result is positive when `p1`, `p2`, `p3` run clockwise on screen, negative
+   * when they run anticlockwise and `0` when the points are collinear. With `p1` and `p2` fixed, it
+   * tells which side of the line `p1`-`p2` the point `p3` is on.
+   *
+   * The arithmetic is done in `int32_t` and is not checked for overflow, so the differences between
+   * the coordinates should stay within +/-32767.
+   *
+   * \param[in] p1 Start of the edge.
+   * \param[in] p2 End of the edge.
+   * \param[in] p3 Point to test against the edge.
+   * \return Twice the signed area of the triangle, in square pixels.
    */
   int32_t orient2d(Point p1, Point p2, Point p3) {
     return (p2.x - p1.x) * (p3.y - p1.y) - (p2.y - p1.y) * (p3.x - p1.x);
   }
 
   /**
-   * TODO: Document this function
+   * Fill rule test used by the triangle rasteriser to decide which edges own the pixels exactly on them.
    *
-   * \param[in] p1
-   * \param[in] p2
+   * Returns `true` when the edge from `p1` to `p2` points towards increasing y, or is horizontal
+   * and points towards decreasing x. @ref Surface::triangle draws pixels on edges where this is
+   * `true` and skips pixels on the other edges, so triangles that share an edge never draw the
+   * pixels along it twice.
+   *
+   * \param[in] p1 Start of the edge.
+   * \param[in] p2 End of the edge.
+   * \return `true` if pixels on this edge are drawn.
    */
   bool is_top_left(const Point &p1, const Point &p2) {
     return (p1.y == p2.y && p1.x > p2.x) || (p1.y < p2.y);

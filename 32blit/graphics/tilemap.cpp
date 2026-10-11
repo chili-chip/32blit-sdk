@@ -60,10 +60,20 @@ namespace blit {
   }
 
   /**
-   * TODO: Document
+   * Get the index into `tiles` and `transforms` for a tile position, applying `repeat_mode`.
    *
-   * \param[in] x
-   * \param[in] y
+   * Positions inside the map give `x + y * bounds.w`. For positions outside the map the result
+   * depends on `repeat_mode`:
+   * - `NONE`: `-1`.
+   * - `REPEAT`: the position is wrapped around the map (this relies on `bounds` being a power of two).
+   * - `CLAMP_TO_EDGE`: the position is clamped to the nearest edge tile.
+   * - `DEFAULT_FILL`: `default_tile_id` is returned as-is. Note that this is a tile id, not an
+   *   index, so callers that use the result to index `tiles` read whatever tile is stored at
+   *   index `default_tile_id`.
+   *
+   * \param[in] x Tile x position (in tiles, not pixels).
+   * \param[in] y Tile y position (in tiles, not pixels).
+   * \return Index into `tiles`/`transforms`, or `-1` if the position is outside the map and `repeat_mode` is `NONE`.
    */
   int32_t TileMap::offset(int16_t x, int16_t y) {
     int32_t cx = ((uint32_t)x) & (bounds.w - 1);
@@ -171,13 +181,32 @@ namespace blit {
   }*/
 
   /**
-   * TODO: Document
+   * Draw one horizontal span of the tilemap, sampling the map along a line in world space.
    *
-   * \param[in] dest
-   * \param[in] s
-   * \param[in] c
-   * \param[in] swc
-   * \param[in] ewc
+   * Pixel `i` of the span (`0 <= i < c`) is drawn at `s + (i, 0)` with the colour of the
+   * world-space pixel `swc + (ewc - swc) * i / c`, so `ewc` is the world position one pixel past
+   * the end of the span. This is what @ref draw calls once per scanline, and it allows the map
+   * to be scaled, rotated or skewed per scanline.
+   *
+   * World coordinates are in pixels, with each tile 8x8 pixels. Tile ids index `sprites` as a
+   * sheet of 8x8 sprites, 16 per row, so the sheet is expected to be 128 pixels wide. Bits in
+   * the tile's `transforms` entry change the sampled pixel: `0b100` flips it horizontally,
+   * `0b010` flips it vertically and `0b001` swaps x and y (after the flips). Pixels are written
+   * with `dest`'s pen blend function, so `dest->alpha` and `dest->mask` apply, and fully
+   * transparent sprite pixels are skipped by the RGB/RGBA blend functions.
+   *
+   * Pixels over tiles equal to `empty_tile_id`, or outside the map when `repeat_mode` is `NONE`,
+   * are left unchanged.
+   *
+   * The span is not clipped and sprite coordinates are not bounds checked: `s` and `c` must lie
+   * inside `dest` and every tile id must be inside `sprites`. Positions are stepped in 16.16
+   * fixed point, so world coordinates must stay within +/-32767 pixels.
+   *
+   * \param[in] dest Surface to draw to.
+   * \param[in] s Screen position of the first pixel of the span.
+   * \param[in] c Number of pixels to draw. Must be at least 1.
+   * \param[in] swc World coordinate (in pixels) sampled for the first pixel.
+   * \param[in] ewc World coordinate (in pixels) one pixel past the end of the span.
    */
   void TileMap::texture_span(Surface *dest, Point s, unsigned int c, Vec2 swc, Vec2 ewc) {
     Surface *src = sprites;
