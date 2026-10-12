@@ -17,6 +17,10 @@ env:
 jobs:
   build:
     runs-on: ubuntu-22.04
+    # The Deploy to GitHub Pages step pushes the gh-pages branch, so the
+    # job token needs write access (the org default is read-only).
+    permissions:
+      contents: write
 
     steps:
     - uses: actions/checkout@v7
