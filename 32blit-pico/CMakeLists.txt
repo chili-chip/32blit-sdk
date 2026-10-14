@@ -20,6 +20,7 @@ target_sources(BlitHalPico INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/multiplayer.cpp
     ${CMAKE_CURRENT_LIST_DIR}/overlay.cpp
     ${CMAKE_CURRENT_LIST_DIR}/power.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/screen_sleep.cpp
     ${CMAKE_CURRENT_LIST_DIR}/settings.cpp
     ${CMAKE_CURRENT_LIST_DIR}/system_menu.cpp
     ${CMAKE_CURRENT_LIST_DIR}/usb.cpp

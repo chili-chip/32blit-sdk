@@ -23,6 +23,7 @@
 #include "led.hpp"
 #include "multiplayer.hpp"
 #include "power.hpp"
+#include "screen_sleep.hpp"
 #include "settings.hpp"
 #include "storage.hpp"
 #include "system_menu.hpp"
@@ -419,6 +420,7 @@ int main() {
     update_display(now);
 
     update_input();
+    update_screen_sleep(now);
     check_home_button();
 
     int ms_to_next_update = do_tick(::now());
