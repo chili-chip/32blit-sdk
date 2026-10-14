@@ -34,9 +34,20 @@ The following requirements enable cross-compile to 32Blit via ARM GCC:
 (These are similar to the [Linux requirements](Linux.md#prerequisites), see those for more details)
 
 ```
-sudo apt install gcc gcc-arm-none-eabi unzip cmake make python3 python3-pip python3-setuptools
-pip3 install 32blit construct bitstring
+sudo apt install gcc gcc-arm-none-eabi unzip cmake make python3 python3-pip python3-setuptools python3-venv
 ```
+
+Then install the 32blit tools from the SDK's `tools/requirements.txt`. It installs the `32blit` command (which pulls in `construct`, `bitstring` and the other Python dependencies) and pins `bitstring<5`, because bitstring 5 removed `ConstBitStream`, which the tools still use.
+
+Current Ubuntu releases for WSL (23.04 and later, including 24.04) refuse `pip install` outside a virtual environment ("externally-managed-environment", [PEP 668](https://peps.python.org/pep-0668/)), so create one first:
+
+```
+python3 -m venv ~/venvs/32blit
+source ~/venvs/32blit/bin/activate
+python3 -m pip install -r tools/requirements.txt
+```
+
+Run the commands from the root of your `32blit-sdk` checkout, and activate the venv (`source ~/venvs/32blit/bin/activate`) in every new terminal before building.
 
 If you are using the older Ubuntu 18.04-based WSL, you will need a newer toolchain than the one provided:
 ```shell

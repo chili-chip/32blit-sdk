@@ -10,21 +10,21 @@ Install dependencies (Ubuntu / WSL):
 
 ```bash
 sudo apt install git gcc g++ gcc-arm-none-eabi cmake make \
-python3 python3-pip python3-setuptools \
+python3 python3-pip python3-setuptools python3-venv \
 libsdl2-dev libsdl2-image-dev libsdl2-net-dev unzip
 ```
 
-Install the 32Blit Python tools:
+Install the 32Blit Python tools from the SDK's `tools/requirements.txt`. It installs the `32blit` command (which pulls in `construct`, `bitstring` and the other Python dependencies) and pins `bitstring<5`, because bitstring 5 removed `ConstBitStream`, which the tools still use.
+
+Recent distributions (Debian 12, Ubuntu 23.04 and later) refuse `pip install` outside a virtual environment ("externally-managed-environment", [PEP 668](https://peps.python.org/pep-0668/)), so create one first:
 
 ```bash
-python3 -m pip install --user 32blit
+python3 -m venv ~/venvs/32blit
+source ~/venvs/32blit/bin/activate
+python3 -m pip install -r tools/requirements.txt
 ```
 
-If pip installs to a directory not on PATH:
-
-```bash
-export PATH=$PATH:~/.local/bin
-```
+Run the commands from the root of your `32blit-sdk` checkout, and activate the venv (`source ~/venvs/32blit/bin/activate`) in every new terminal before building.
 
 ---
 
@@ -81,8 +81,12 @@ This produces a `.uf2` file for your game.
 
 1. Connect the console via USB.
 2. Power it off, then hold the top **X button** and press **Power**.
-3. The device should appear as `RPI-RP2` on Linux (`/media/<username>/RPI-RP2`).
+3. The device should appear as `RP2350` on Linux (`/media/<username>/RP2350`).
 4. Copy your `.uf2` file:
+
+```bash
+cp your-game.uf2 /media/$USER/RP2350/
+```
 
 The console will automatically reboot into your game.
 
