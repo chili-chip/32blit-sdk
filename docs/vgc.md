@@ -128,7 +128,7 @@ Hold **HOME** for one second to leave a game and return to the launcher.
 
 ### System menu, battery and settings
 
-Press **HOME** briefly in a game to pause it and open the system menu: resume, volume, brightness, battery and quit to home. Up and down pick an item, left and right change volume and brightness, A selects and B or HOME resumes. Holding HOME still quits straight to the launcher. The menu doesn't open over the launcher itself.
+Press **HOME** briefly in a game to pause it and open the system menu: resume, volume, brightness, battery and quit to home. Up and down pick an item, left and right change volume and brightness, A selects and B or HOME resumes. Holding HOME quits to the home screen. Either way of quitting lets the game save first (see [Saves](#saves)). The menu doesn't open over the launcher itself.
 
 The loader reads the battery on GPIO29 four times a second and smooths it (`32blit-pico/power.cpp`). `BATTERY_DIVIDER` in `board/chilichip_vgc/config.h` assumes the board's divider is ÷3, which is inferred from Waveshare's demos and still needs measuring against a multimeter, as does the percentage curve. "USB connected" means a computer has enumerated the console; a charger alone doesn't count.
 
@@ -157,10 +157,31 @@ This is enabled by `AUTO_INSTALL` in `board/chilichip_vgc/config.h` (`32blit-pic
 - A 12 px status bar shows the battery level and a plug icon while USB is connected.
 - The carousel shows one cover per installed game: the selected game's splash image large in the middle, its neighbours smaller at the edges. Left and right scroll, A plays. Games without a splash get a coloured card with their title.
 - Games that have never been played come first (so new installs show up first), then the rest from most recently played. The order is kept in the home screen's save.
-- Y opens game info: author, version, size and description, with Play, Delete game and Delete save data. Deleting a game keeps its save data.
+- Y opens game info: author, version, size and description, with Play, Delete game and Delete save data. Deleting a game that has save data then asks whether to delete the saves too; B keeps them.
 - The last tile, or MENU, opens Settings: brightness, volume, screen sleep (stored now, applied in a later milestone), the games list with sizes, storage used and free for games and for the USB drive, and About with the OS version, firmware version and serial number.
 
+The system menu, the install screens and the "Deleting game" progress box are drawn by the loader with the same look as the home screen, from `launcher-shared/theme.hpp`.
+
 Storage and About use `get_system_info()`, added in API 0.4 (`32blit/engine/system.hpp`). On desktop builds the home screen lists the `.blit` files next to the executable instead of installed games, which is handy for working on the UI.
+
+### Saves
+
+Games save with `blit::write_save()` and load with `blit::read_save()` (`32blit/engine/save.hpp`). Each save is a file in `.blit/<game title>/` on the USB drive, so saves survive reinstalling or updating a game, and can be backed up by copying that folder.
+
+To save when the player quits, set `blit::on_quit` (`32blit/engine/engine.hpp`, API 0.5), usually in `init()`:
+
+```cpp
+void save_progress() {
+  blit::write_save(progress);
+}
+
+void init() {
+  blit::read_save(progress);
+  blit::on_quit = save_progress;
+}
+```
+
+The loader calls it before returning to the home screen, from the system menu's "Quit to home" or by holding HOME. Holding HOME waits for the game to finish its current frame; if a game is stuck for two more seconds, the loader quits without saving. Desktop builds call it when the window closes. The console has a hard power switch, so switching it off can't be caught: save at checkpoints too, not only on quit.
 
 ### Memory layout
 

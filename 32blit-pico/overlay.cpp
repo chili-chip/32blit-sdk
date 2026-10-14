@@ -2,6 +2,8 @@
 
 #include "engine/engine.hpp"
 
+#include "theme.hpp"
+
 using namespace blit;
 
 static void(*orig_render)(uint32_t) = nullptr;
@@ -16,12 +18,15 @@ static void overlay_render(uint32_t time) {
     orig_render(time);
 
   if(!message.empty() || progress_total) {
-    screen.pen = Pen(0, 0, 0, 150);
-    screen.rectangle(Rect(0, screen.bounds.h - 25, screen.bounds.w, 25));
-    screen.pen = Pen(255, 255, 255);
-    screen.text(message, minimal_font, Point(5, screen.bounds.h - 20));
-    uint32_t progress_width = float(progress_value) / progress_total * (screen.bounds.w - 10);
-    screen.rectangle(Rect(5, screen.bounds.h - 10, progress_width, 5));
+    const int w = screen.bounds.w, h = screen.bounds.h;
+    Rect panel(2, h - 27, w - 4, 25);
+    draw_panel(panel);
+
+    screen.pen = theme::text;
+    screen.text(message, minimal_font, Rect(panel.x + 5, panel.y + 5, panel.w - 10, 9), true, TextAlign::top_left);
+
+    if(progress_total)
+      draw_bar(Rect(panel.x + 5, panel.y + panel.h - 9, panel.w - 10, 5), progress_value, progress_total);
   }
 
   render_flag = false;

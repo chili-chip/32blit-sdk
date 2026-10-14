@@ -28,9 +28,10 @@ static Screen info_back = Screen::home;
 
 // dialog over the current screen
 static bool dialog_open = false;
-static bool dialog_confirm = false;
 static std::string dialog_message;
-static std::function<void()> dialog_on_yes;
+static const char *dialog_yes_label = "OK";
+static const char *dialog_no_label = nullptr; // no B choice without one
+static std::function<void()> dialog_on_yes, dialog_on_no;
 
 static int num_tiles() {
   return get_games().size() + 1;
@@ -52,18 +53,17 @@ void open_info(int game_index, Screen back) {
   current_screen = Screen::info;
 }
 
-void show_confirm(const std::string &message, std::function<void()> on_yes) {
+void show_confirm(const std::string &message, std::function<void()> on_yes, const char *yes_label, const char *no_label, std::function<void()> on_no) {
   dialog_open = true;
-  dialog_confirm = true;
   dialog_message = message;
+  dialog_yes_label = yes_label;
+  dialog_no_label = no_label;
   dialog_on_yes = on_yes;
+  dialog_on_no = on_no;
 }
 
 void show_message(const std::string &message) {
-  dialog_open = true;
-  dialog_confirm = false;
-  dialog_message = message;
-  dialog_on_yes = nullptr;
+  show_confirm(message, nullptr, "OK", nullptr);
 }
 
 void select_game(int game_index) {
@@ -276,10 +276,21 @@ static void update_info(uint32_t pressed) {
     if(info_action == Play)
       start_game(info_game);
     else if(info_action == DeleteGame) {
-      show_confirm("Delete " + game.title + "? Its save data stays on the drive.", [] {
+      show_confirm("Delete " + game.title + "?", [] {
+        auto title = get_games()[info_game].title;
+        bool had_saves = has_save_data(title);
+
         delete_game(info_game);
         after_delete();
-      });
+
+        // B keeps them, like backing out of any other question
+        if(had_saves) {
+          show_confirm("Also delete the save data for " + title + "?", [title] {
+            if(!delete_save_data(title))
+              show_message("Couldn't delete all of the save data");
+          }, "Delete", "Keep");
+        }
+      }, "Delete", "Cancel");
     } else if(info_action == DeleteSave) {
       if(!has_save_data(info_game))
         show_message("No save data");
@@ -289,7 +300,7 @@ static void update_info(uint32_t pressed) {
             show_message("Save data deleted");
           else
             show_message("Couldn't delete all of the save data");
-        });
+        }, "Delete", "Cancel");
       }
     }
   }
@@ -343,9 +354,7 @@ static void render_info() {
     Rect r(0, actions_y + i * row_h, w, row_h);
     bool is_selected = i == info_action;
     if(is_selected) {
-      draw_round_rect(Rect(r.x + 2, r.y, r.w - 4, r.h - 1), theme::chili, theme::hot);
-      screen.pen = theme::pepper;
-      screen.rectangle(Rect(r.x + 2, r.y + 2, 2, r.h - 5));
+      draw_selection(Rect(r.x + 2, r.y, r.w - 4, r.h - 1));
     }
 
     screen.pen = i == DeleteSave && !has_save_data(info_game) && !is_selected ? theme::faint_text : theme::text;
@@ -370,15 +379,18 @@ void update(uint32_t time) {
   uint32_t pressed = get_pressed(time);
 
   if(dialog_open) {
+    // the answer may open another dialog
+    std::function<void()> answer;
     if(pressed & Button::A) {
       dialog_open = false;
-      if(dialog_confirm && dialog_on_yes) {
-        auto on_yes = dialog_on_yes;
-        dialog_on_yes = nullptr;
-        on_yes();
-      }
-    } else if(pressed & Button::B)
+      answer = dialog_on_yes;
+    } else if(pressed & Button::B) {
       dialog_open = false;
+      answer = dialog_on_no;
+    }
+
+    if(answer)
+      answer();
     return;
   }
 
@@ -409,5 +421,5 @@ void render(uint32_t time) {
   }
 
   if(dialog_open)
-    draw_dialog(dialog_message, dialog_confirm);
+    draw_dialog(dialog_message, dialog_yes_label, dialog_no_label);
 }

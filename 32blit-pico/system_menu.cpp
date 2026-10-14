@@ -14,6 +14,8 @@
 #include "engine/engine.hpp"
 #include "graphics/font.hpp"
 
+#include "theme.hpp"
+
 using namespace blit;
 
 extern int (*do_tick)(uint32_t time);
@@ -132,20 +134,13 @@ static int menu_tick(uint32_t time) {
   return 20;
 }
 
-static void draw_bar(const Rect &r, int value, int max) {
-  screen.pen = Pen(70, 70, 90);
-  screen.rectangle(r);
-  screen.pen = Pen(255, 255, 255);
-  screen.rectangle(Rect(r.x, r.y, r.w * value / max, r.h));
-}
-
 static void menu_render(uint32_t time) {
   const int w = screen.bounds.w, h = screen.bounds.h;
   const bool small = h < 100; // lores
 
   // dim the paused game once per page, it doesn't redraw underneath
   if(dim_pages > 0) {
-    screen.pen = Pen(0, 0, 0, 160);
+    screen.pen = theme::shade;
     screen.rectangle(Rect(0, 0, w, h));
     dim_pages--;
   }
@@ -154,43 +149,40 @@ static void menu_render(uint32_t time) {
   static const char *const short_labels[ItemCount] = {"Resume", "Vol", "Light", "Batt", "Quit"};
 
   const int margin = small ? 2 : 6;
-  const int row_h = small ? 10 : 15;
-  const int title_h = small ? 0 : 16;
+  const int row_h = small ? 10 : 13;
+  const int title_h = small ? 3 : 14;
+  const int hints_h = small ? 0 : 13;
   const int bar_w = small ? 22 : 40;
 
-  Rect panel(margin, 0, w - margin * 2, title_h + row_h * ItemCount + 4);
+  Rect panel(margin, 0, w - margin * 2, title_h + row_h * ItemCount + hints_h + 4);
   panel.y = (h - panel.h) / 2;
 
-  screen.pen = Pen(90, 90, 120);
-  screen.rectangle(panel);
-  screen.pen = Pen(16, 16, 24);
-  screen.rectangle(Rect(panel.x + 1, panel.y + 1, panel.w - 2, panel.h - 2));
+  draw_panel(panel);
 
-  if(title_h) {
-    screen.pen = Pen(160, 160, 190);
-    screen.text("Paused", minimal_font, Rect(panel.x, panel.y + 2, panel.w, title_h), true, TextAlign::center_center);
+  if(!small) {
+    screen.pen = theme::text;
+    screen.text("Paused", fat_font, Rect(panel.x + 6, panel.y + 4, panel.w - 12, 9), true, TextAlign::center_left);
   }
 
   auto &settings = get_current_settings();
 
   for(int i = 0; i < ItemCount; i++) {
-    Rect row(panel.x + 2, panel.y + 2 + title_h + i * row_h, panel.w - 4, row_h);
+    Rect row(panel.x + 3, panel.y + 2 + title_h + i * row_h, panel.w - 6, row_h - 1);
+    bool is_selected = i == selected;
 
-    if(i == selected) {
-      screen.pen = Pen(50, 80, 150);
-      screen.rectangle(row);
-    }
+    if(is_selected)
+      draw_selection(row);
 
-    Rect inner(row.x + 3, row.y, row.w - 6, row.h);
-    screen.pen = Pen(255, 255, 255);
+    Rect inner(row.x + 5, row.y, row.w - 8, row.h);
+    screen.pen = theme::text;
     screen.text(small ? short_labels[i] : labels[i], minimal_font, inner, true, TextAlign::center_left);
 
-    Rect bar(inner.x + inner.w - bar_w, row.y + row_h / 2 - 2, bar_w, 4);
+    Rect bar(inner.x + inner.w - bar_w, row.y + row.h / 2 - 2, bar_w, 5);
 
     if(i == Volume)
-      draw_bar(bar, settings.volume, 100);
+      draw_bar(bar, settings.volume, 100, is_selected);
     else if(i == Brightness)
-      draw_bar(bar, settings.brightness, 15);
+      draw_bar(bar, settings.brightness, 15, is_selected);
     else if(i == Battery) {
       char buf[16];
       int level = ::get_battery_level();
@@ -202,9 +194,13 @@ static void menu_render(uint32_t time) {
       else
         snprintf(buf, sizeof(buf), "%i%% USB", level);
 
+      screen.pen = level >= 0 && level <= 15 ? theme::pepper : theme::dim_text;
       screen.text(buf, minimal_font, inner, true, TextAlign::center_right);
     }
   }
+
+  if(hints_h)
+    draw_hints({{'A', "Select"}, {'B', "Resume"}}, panel.y + panel.h - hints_h);
 }
 
 void system_menu_toggle() {

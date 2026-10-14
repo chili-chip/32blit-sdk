@@ -57,6 +57,12 @@ extern "C" bool do_init() {
   blit::update = update;
   blit::render = render;
 
+  // the loader calls this before quitting to the home screen
+  blit::api_data.on_quit = [] {
+    if(blit::on_quit)
+      blit::on_quit();
+  };
+
 #ifndef BLIT_BOARD_PIMORONI_PICOVISION
   blit::api.set_framebuffer((uint8_t *)screen_fb, sizeof(screen_fb), {DISPLAY_WIDTH, DISPLAY_HEIGHT});
 #endif

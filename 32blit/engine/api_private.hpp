@@ -188,7 +188,10 @@ namespace blit {
     // raw i2c access
     void (*i2c_completed)(uint8_t address, uint8_t reg, const uint8_t *data, uint16_t len); // callback when done
 
-    COMPAT_PAD(uintptr_t, pad5, 13); // includes the system services added in 0.3 and 0.4
+    // added in 0.5, set by the game
+    void (*on_quit)(); // called before the system quits the game
+
+    COMPAT_PAD(uintptr_t, pad5, 12); // includes the system services added in 0.3 and 0.4
   };
 
 #ifdef BLIT_API_SPLIT_COMPAT
