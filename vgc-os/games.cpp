@@ -269,23 +269,24 @@ bool delete_game(int index) {
   return true;
 }
 
-static std::string save_dir(const Game &game) {
-  return ".blit/" + game.title;
+static std::string save_dir(const std::string &title) {
+  return ".blit/" + title;
+}
+
+bool has_save_data(const std::string &title) {
+  auto dir = save_dir(title);
+  return directory_exists(dir) && !list_files(dir).empty();
 }
 
 bool has_save_data(int index) {
   if(index < 0 || index >= int(games.size()))
     return false;
 
-  auto dir = save_dir(games[index]);
-  return directory_exists(dir) && !list_files(dir).empty();
+  return has_save_data(games[index].title);
 }
 
-bool delete_save_data(int index) {
-  if(index < 0 || index >= int(games.size()))
-    return false;
-
-  auto dir = save_dir(games[index]);
+bool delete_save_data(const std::string &title) {
+  auto dir = save_dir(title);
   if(!directory_exists(dir))
     return true;
 
@@ -294,4 +295,11 @@ bool delete_save_data(int index) {
     ok = remove_file(dir + "/" + file.name) && ok;
 
   return remove_file(dir) && ok;
+}
+
+bool delete_save_data(int index) {
+  if(index < 0 || index >= int(games.size()))
+    return false;
+
+  return delete_save_data(games[index].title);
 }

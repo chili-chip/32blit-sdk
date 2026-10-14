@@ -15,6 +15,8 @@
 #include "engine/api_private.hpp"
 #include "engine/engine.hpp"
 
+#include "theme.hpp"
+
 #ifdef BUILD_LOADER
 
 using namespace blit;
@@ -82,64 +84,54 @@ static bool is_error(InstallResult res) {
 
 static void installer_render(uint32_t time) {
   const int w = screen.bounds.w, h = screen.bounds.h;
-  const int header_h = 14, footer_h = 14, row_h = 20;
+  const int footer_h = 13, row_h = 20;
 
-  screen.pen = Pen(16, 16, 24);
-  screen.clear();
-
-  // header
-  screen.pen = Pen(40, 60, 120);
-  screen.rectangle(Rect(0, 0, w, header_h));
-  screen.pen = Pen(255, 255, 255);
-  screen.text(finished ? "Install complete" : "Installing games", minimal_font, Rect(4, 0, w - 8, header_h), true, TextAlign::center_left);
+  draw_background();
+  draw_status_bar(finished ? "Install complete" : "Installing games");
 
   // keep the current game in view
-  int visible = (h - header_h - footer_h) / row_h;
+  int top = status_bar_h + 3;
+  int visible = (h - top - footer_h) / row_h;
   int first = 0;
   if(current_item >= visible)
     first = current_item - visible + 1;
 
   for(int i = first; i < int(items.size()) && i < first + visible; i++) {
     auto &item = items[i];
-    int y = header_h + 2 + (i - first) * row_h;
+    int y = top + (i - first) * row_h;
 
     // name without the extension
     auto name = item.filename.substr(0, item.filename.size() - 5);
-    screen.pen = Pen(255, 255, 255);
-    screen.text(name, minimal_font, Rect(4, y, w - 8, 9), true, TextAlign::top_left);
+    screen.pen = theme::text;
+    screen.text(fit_text(name, w - 8), minimal_font, Rect(4, y, w - 8, 9), true, TextAlign::top_left);
 
     Rect status(4, y + 10, w - 8, 7);
 
     if(item.state == ItemState::Waiting) {
-      screen.pen = Pen(120, 120, 140);
+      screen.pen = theme::faint_text;
       screen.text("Waiting", minimal_font, status, true, TextAlign::top_left);
     } else if(item.state == ItemState::Installing) {
-      screen.pen = Pen(70, 70, 90);
-      screen.rectangle(Rect(status.x, status.y + 1, status.w, 4));
-      screen.pen = Pen(255, 255, 255);
-      int fill = item.total ? int(uint64_t(status.w) * item.progress / item.total) : 0;
-      screen.rectangle(Rect(status.x, status.y + 1, fill, 4));
+      draw_bar(Rect(status.x, status.y + 1, status.w, 5), item.progress, item.total);
     } else {
       if(is_error(item.result))
-        screen.pen = Pen(255, 110, 90);
+        screen.pen = theme::hot;
       else if(item.result == InstallResult::Installed)
-        screen.pen = Pen(110, 220, 110);
+        screen.pen = theme::good;
       else
-        screen.pen = Pen(150, 150, 170);
+        screen.pen = theme::dim_text;
 
       screen.text(result_text(item.result), minimal_font, status, true, TextAlign::top_left);
     }
   }
 
   // footer
-  screen.pen = Pen(160, 160, 190);
-  Rect footer(4, h - footer_h, w - 8, footer_h);
   if(!finished) {
     char buf[32];
     snprintf(buf, sizeof(buf), "%i of %i", current_item + 1, int(items.size()));
-    screen.text(buf, minimal_font, footer, true, TextAlign::center_left);
+    screen.pen = theme::dim_text;
+    screen.text(buf, minimal_font, Rect(0, h - footer_h, w, footer_h), true, TextAlign::center_center);
   } else if(had_errors)
-    screen.text("Press A to continue", minimal_font, footer, true, TextAlign::center_left);
+    draw_hints({{'A', "Continue"}}, h - 11);
 }
 
 // draw a frame now, used while the main loop is blocked by an install

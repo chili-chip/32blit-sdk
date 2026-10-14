@@ -408,6 +408,7 @@ void launch_pre_init() {
   blit::api_data.vibration = 0.0f;
   blit::api_data.message_received = nullptr;
   blit::api_data.i2c_completed = nullptr;
+  blit::api_data.on_quit = nullptr;
 
   for(int i = 0; i < CHANNEL_COUNT; i++)
     blit::api.channels[i] = blit::AudioChannel();
@@ -484,7 +485,7 @@ void erase_game(uint32_t offset) {
 
   // we can't display progress unless we break up the erase...
   set_render_overlay_enabled(true);
-  set_overlay_message("Erasing flash...");
+  set_overlay_message("Deleting game...");
   set_overlay_progress(0, 0);
   // make sure the message is displayed before we disable interrupts/core1
   overlay_try_render(true);

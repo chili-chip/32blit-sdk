@@ -39,6 +39,10 @@ int (*do_tick)(uint32_t time) = blit::tick;
 static alarm_id_t home_hold_alarm_id = 0;
 static bool home_held = false;
 
+// holding HOME asks the main loop to quit, so the game can save first
+static volatile bool quit_requested = false;
+static alarm_id_t quit_timeout_alarm_id = 0;
+
 // override terminate handler to save ~20-30k
 namespace __cxxabiv1 {
   std::terminate_handler __terminate_handler = std::abort;
@@ -238,6 +242,12 @@ void disable_user_code() {
 }
 
 void quit_to_launcher() {
+  // let the game save before it's gone
+  auto on_quit = api_data.on_quit;
+  api_data.on_quit = nullptr;
+  if(on_quit)
+    on_quit();
+
   system_menu_reset();
 
   close_open_files();
@@ -247,12 +257,40 @@ void quit_to_launcher() {
 }
 
 [[maybe_unused]]
+static int64_t quit_timeout_callback(alarm_id_t id, void *user_data) {
+  quit_timeout_alarm_id = 0;
+
+  // the game hasn't returned to the main loop, quit without saving
+  if(quit_requested) {
+    quit_requested = false;
+    api_data.on_quit = nullptr;
+    quit_to_launcher();
+  }
+
+  return 0;
+}
+
+[[maybe_unused]]
 static int64_t home_hold_callback(alarm_id_t id, void *user_data) {
   home_hold_alarm_id = 0;
 
-  quit_to_launcher();
+  quit_requested = true;
+  quit_timeout_alarm_id = add_alarm_in_ms(2000, quit_timeout_callback, nullptr, false);
 
   return 0;
+}
+
+static void handle_quit_request() {
+  if(!quit_requested)
+    return;
+
+  // too late if the timeout already quit
+  if(quit_timeout_alarm_id && !cancel_alarm(quit_timeout_alarm_id))
+    return;
+
+  quit_timeout_alarm_id = 0;
+  quit_requested = false;
+  quit_to_launcher();
 }
 
 static void check_home_button() {
@@ -384,6 +422,7 @@ int main() {
     check_home_button();
 
     int ms_to_next_update = do_tick(::now());
+    handle_quit_request();
 
     update_led();
     update_power(now);

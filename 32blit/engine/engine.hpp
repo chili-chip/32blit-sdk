@@ -15,6 +15,9 @@ namespace blit {
   extern void     (*update)           (uint32_t time);
   extern void     (*render)           (uint32_t time);
 
+  // called when the player quits the game (to the home screen, or closing the window on desktop), save progress here
+  extern void     (*on_quit)          ();
+
   void set_screen_mode(ScreenMode new_mode, Size bounds = {0, 0});
   bool set_screen_mode(ScreenMode new_mode, PixelFormat format, Size bounds = {0, 0});
   void set_screen_palette(const Pen *colours, int num_cols);

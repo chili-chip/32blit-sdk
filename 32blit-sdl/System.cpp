@@ -461,6 +461,10 @@ void System::stop() {
     SDL_DetachThread(t_system_loop);
   } else {
     SDL_WaitThread(t_system_loop, &returnValue);
+
+    // let the game save
+    if(blit::on_quit)
+      blit::on_quit();
   }
 
   SDL_SemPost(s_timer_stop);
