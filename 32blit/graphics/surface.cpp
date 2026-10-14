@@ -586,9 +586,9 @@ namespace blit {
    * number of pixels in the row. The callback does all of the pixel work; `alpha`, `mask`,
    * `pen` and the surface blend functions are not used.
    *
-   * Rows are advanced by `bounds.w` bytes, so this is only correct when both surfaces use a
-   * one byte per pixel format (`PixelFormat::P` or `PixelFormat::M`). The source rectangle is
-   * not clipped against `src`'s bounds, so the caller must keep `r` inside `src`.
+   * The source rectangle is also clipped against `src`'s bounds. Rows are advanced by each
+   * surface's `row_stride`, so any pixel format works; the callback receives raw bytes and must
+   * handle the formats of both surfaces itself (`c` is in pixels, not bytes).
    *
    * \param src Source surface to read from.
    * \param r Source rectangle, in `src` pixel coordinates.
@@ -603,20 +603,28 @@ namespace blit {
       return; // after clipping there is nothing to draw
 
     // offset source rect to accommodate for clipped destination rect
-    uint8_t l = dr.x - p.x; // top left corner
-    uint8_t t = dr.y - p.y;
-    r.x += l; r.w -= l; r.y += t; r.h -= t;
+    int32_t l = dr.x - p.x; // top left corner
+    int32_t t = dr.y - p.y;
+    r.x += l; r.y += t;
     r.w = dr.w; // clamp width/height
     r.h = dr.h;
 
-    uint8_t *psrc = src->ptr(r.x, r.y);
+    // clip the source rect against the source surface and shrink the destination to match
+    Rect sr = r.intersection(Rect(0, 0, src->bounds.w, src->bounds.h));
+    if (sr.empty())
+      return;
+
+    dr.x += sr.x - r.x; dr.y += sr.y - r.y;
+    dr.w = sr.w; dr.h = sr.h;
+
+    uint8_t *psrc = src->ptr(sr.x, sr.y);
     uint8_t *pdest = ptr(dr.x, dr.y);
 
     for (int32_t y = 0; y < dr.h; y++) {
       f(psrc, pdest, dr.w);
 
-      psrc += src->bounds.w;
-      pdest += bounds.w;
+      psrc += src->row_stride;
+      pdest += row_stride;
     }
   }
 
@@ -628,8 +636,8 @@ namespace blit {
    * The callback does all of the pixel work; `alpha`, `mask`, `pen` and the surface blend
    * functions are not used.
    *
-   * Rows are advanced by `bounds.w` bytes, so this is only correct for one byte per pixel
-   * formats (`PixelFormat::P` or `PixelFormat::M`).
+   * Rows are advanced by `row_stride`, so any pixel format works; the callback receives raw
+   * bytes and must handle the surface's format itself (`c` is in pixels, not bytes).
    *
    * \param r Rectangle to modify, in pixel coordinates.
    * \param f Callback `f(p, c)`, called once per row: `p` points at the first pixel of the row
@@ -646,7 +654,7 @@ namespace blit {
     for (int32_t y = 0; y < dr.h; y++) {
       f(p, dr.w);
 
-      p += bounds.w;
+      p += row_stride;
     }
   }
 
@@ -919,13 +927,11 @@ namespace blit {
    * Draw the 32blit logo watermark in the bottom right corner of the surface.
    *
    * The 13x13 logo is drawn with the surface's pen blend function (so `alpha` and `mask` apply),
-   * inset from the right and bottom edges by two logo pixels. Each logo pixel is `bounds.w / 160` pixels wide (integer division), so it
-   * is drawn at 1x on a 160 to 319 pixel wide surface and 2x on a 320 to 479 pixel wide surface.
-   * At 2x each logo pixel is drawn as a 2x2 block; at 3x and above only the first row of each
-   * block is drawn.
+   * inset from the right and bottom edges by two logo pixels. Each logo pixel is drawn as a
+   * `scale` x `scale` block, where `scale` is `bounds.w / 160` (integer division) but at least 1:
+   * 1x up to 319 pixels wide, 2x on a 320 to 479 pixel wide surface, and so on.
    *
-   * Must not be called on a surface less than 160 pixels wide: the scale is then 0 and the
-   * blend functions are called with a pixel count of 0, which they do not support.
+   * Nothing is drawn if the surface is smaller than the 15 * `scale` pixel logo area.
    */
   void Surface::watermark() {
     static uint8_t logo[] = {
@@ -946,14 +952,20 @@ namespace blit {
 
     static Pen pens[] = { Pen(39, 39, 56), Pen(255, 255, 255), Pen(0, 255, 0) };
 
-    uint8_t scale = bounds.w / 160;
+    // at least 1, so narrow surfaces don't call the blend functions with a zero count
+    int32_t scale = std::max(int32_t(1), int32_t(bounds.w / 160));
+
+    // the logo is drawn 15 * scale pixels in from the bottom right corner
+    if (bounds.w < 15 * scale || bounds.h < 15 * scale)
+      return;
+
     for (uint8_t y = 0; y < 13; y++) {
       for (uint8_t x = 0; x < 13; x++) {
         Pen &p = pens[logo[x + y * 13]];
         int o = offset(bounds.w - (15 * scale) + (x * scale), bounds.h - (15 * scale) + (y * scale));
-        pbf(&p, this, o, scale);
-        if (scale == 2) {
-          pbf(&p, this, o + bounds.w, scale);
+        // fill every row of the scale x scale block
+        for (int32_t row = 0; row < scale; row++) {
+          pbf(&p, this, o + row * bounds.w, scale);
         }
       }
     }
