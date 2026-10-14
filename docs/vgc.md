@@ -92,11 +92,34 @@ The console will automatically reboot into your game.
 
 ---
 
-## Loader and `.blit` games (OS preview)
+## VGC Zero OS: loader, home screen and `.blit` games
 
-Besides standalone `.uf2` games, VGC Zero can run the 32blit loader: a small system firmware that stays in flash and installs any number of `.blit` games next to it. This is the base for the VGC Zero OS.
+Besides standalone `.uf2` games, VGC Zero runs a small OS: the 32blit loader, a system firmware that stays in flash and installs any number of `.blit` games next to it, and the ChiliChip home screen (`vgc-os`) that lists and starts them.
 
-Build the loader (and the stock launcher) from this repository:
+### Setting up a console (factory image)
+
+`vgc-os-factory.uf2` holds the loader with the home screen already installed, so one copy sets up a new or wiped console:
+
+1. Put the console in BOOTSEL mode (see [Copying to ChiliChip VGC Zero](#copying-to-chilichip-vgc-zero)).
+2. Copy the factory image:
+
+```bash
+cp vgc-os-factory.uf2 /media/$USER/RP2350/
+```
+
+The console restarts into the home screen. Copy `.blit` games onto its USB drive to install them (see [Installing games over USB](#installing-games-over-usb)).
+
+The image writes the loader to flash 0–256 KB and the home screen at 256 KB, and leaves the rest of flash alone: other installed games and the USB drive (saves, settings) are kept. A game that was installed at 256 KB is overwritten and needs installing again.
+
+The image is built along with the loader below, as `vgc-os/vgc-os-factory.uf2`, and is part of the CI's "VGC-blit" build. `tools/factory-uf2.py` makes it by adding `.blit` files at fixed flash offsets to the loader's `.uf2`, numbered as one image:
+
+```bash
+python3 tools/factory-uf2.py blit-loader.uf2 vgc-os.blit@256 -o vgc-os-factory.uf2
+```
+
+### Building the loader and `.blit` games
+
+Build the loader, the home screen and the stock launcher from this repository:
 
 ```bash
 mkdir build.vgc-blit
@@ -110,21 +133,18 @@ cmake .. \
 make
 ```
 
-This produces `32blit-pico/loader/blit-loader.uf2` and `launcher/launcher.blit`. Build a game as `.blit` by adding `-DBLIT_EXECUTABLE_PICO_BLIT=1` to its own cmake command.
+This produces `32blit-pico/loader/blit-loader.uf2`, `vgc-os/vgc-os.blit`, `vgc-os/vgc-os-factory.uf2` and `launcher/launcher.blit`. Build a game as `.blit` by adding `-DBLIT_EXECUTABLE_PICO_BLIT=1` to its own cmake command.
 
-To install:
-
-1. Copy `blit-loader.uf2` to the console in BOOTSEL mode (see above).
-2. With the console running the loader and connected over USB, install the launcher and games over USB serial:
+To install the parts separately, copy `blit-loader.uf2` to the console in BOOTSEL mode, then, with the console running the loader and connected over USB, install the home screen and games over USB serial:
 
 ```bash
-32blit install launcher.blit
+32blit install vgc-os.blit
 32blit install game.blit
 ```
 
 You can also copy `.blit` files onto the console's USB drive. The launcher lists them about half a second after the PC finishes writing, and installs a game into flash when you launch it.
 
-Hold **HOME** for one second to leave a game and return to the launcher.
+Hold **HOME** for one second to leave a game and return to the home screen.
 
 ### System menu, battery and settings
 
@@ -132,9 +152,15 @@ Press **HOME** briefly in a game to pause it and open the system menu: resume, v
 
 The loader reads the battery on GPIO29 four times a second and smooths it (`32blit-pico/power.cpp`). `BATTERY_DIVIDER` in `board/chilichip_vgc/config.h` assumes the board's divider is ÷3, which is inferred from Waveshare's demos and still needs measuring against a multimeter, as does the percentage curve. "USB connected" means a computer has enumerated the console; a charger alone doesn't count.
 
-Brightness (0–15, panel contrast) and volume (0–100 %) are stored in `.system/settings.bin` on the USB drive and applied by the loader to every game, so games need no code for them. Standalone `.uf2` builds read the same file.
+Brightness (0–15, panel contrast), volume (0–100 %) and screen sleep are stored in `.system/settings.bin` on the USB drive and applied by the loader to every game, so games need no code for them. Standalone `.uf2` builds read the same file.
 
 Games can read these through API 0.3 (`32blit/engine/system.hpp`): `get_battery_level()`, `get_battery_voltage()`, `is_usb_connected()` and `get_system_settings()`. `set_system_settings()` is for launchers and settings apps. A game built against API 0.3 needs a loader with API 0.3; older games keep working on the new loader.
+
+### Screen sleep
+
+Settings → Screen sleep turns the screen off after 1, 2, 5 or 10 minutes without a button press (Off by default). The loader dims the panel 10 seconds before the timeout, then switches it off with the SSD1351 display-off command (`32blit-pico/screen_sleep.cpp`). Any button turns it back on. While dimmed, that press also reaches the game; while the screen is off, it only wakes the screen. Games and music keep running while the screen is off, and an install in progress keeps the screen on.
+
+Standalone `.uf2` games read the same setting. Screen sleep needs the display driver to implement `set_display_brightness()` and `set_display_power()` (`32blit-pico/display.hpp`); only the SSD1351 driver does so far.
 
 `utilities/system-test` shows all of these on screen, and A plays a test tone to check the volume.
 
@@ -152,13 +178,13 @@ This is enabled by `AUTO_INSTALL` in `board/chilichip_vgc/config.h` (`32blit-pic
 
 ### Home screen (`vgc-os`)
 
-`vgc-os/` is the console's home screen, a `.blit` with category `launcher` titled "ChiliChip OS". Copy `vgc-os.blit` onto the drive like a game. Installing a launcher removes any other installed launcher, so it replaces the stock 32blit launcher (and copying `launcher.blit` back swaps them again).
+`vgc-os/` is the console's home screen, a `.blit` with category `launcher` titled "ChiliChip OS". To update it, copy `vgc-os.blit` onto the drive like a game. The factory image installs it. Installing a launcher removes any other installed launcher, so it replaces the stock 32blit launcher (and copying `launcher.blit` back swaps them again).
 
 - A 12 px status bar shows the battery level and a plug icon while USB is connected.
 - The carousel shows one cover per installed game: the selected game's splash image large in the middle, its neighbours smaller at the edges. Left and right scroll, A plays. Games without a splash get a coloured card with their title.
 - Games that have never been played come first (so new installs show up first), then the rest from most recently played. The order is kept in the home screen's save.
 - Y opens game info: author, version, size and description, with Play, Delete game and Delete save data. Deleting a game that has save data then asks whether to delete the saves too; B keeps them.
-- The last tile, or MENU, opens Settings: brightness, volume, screen sleep (stored now, applied in a later milestone), the games list with sizes, storage used and free for games and for the USB drive, and About with the OS version, firmware version and serial number.
+- The last tile, or MENU, opens Settings: brightness, volume, screen sleep, the games list with sizes, storage used and free for games and for the USB drive, and About with the OS version, firmware version and serial number.
 
 The system menu, the install screens and the "Deleting game" progress box are drawn by the loader with the same look as the home screen, from `launcher-shared/theme.hpp`.
 
