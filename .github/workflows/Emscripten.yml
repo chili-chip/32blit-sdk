@@ -11,7 +11,7 @@ on:
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
   BUILD_TYPE: Release
-  EM_VERSION: 2.0.18
+  EM_VERSION: 6.0.12
   EM_CACHE_FOLDER: 'emsdk-cache'
 
 jobs:
@@ -71,7 +71,7 @@ jobs:
       working-directory: ${{runner.workspace}}/build
       shell: bash
       run: |
-        embuilder.py build sdl2 sdl2-image-jpg sdl2-net
+        embuilder build sdl2 sdl2_image-jpg sdl2_net
         cmake --build . --config $BUILD_TYPE -j 2
 
     - name: Prepare Site
@@ -95,14 +95,6 @@ jobs:
     # Publish the site (docs + web examples) to the chilichip-sdk Cloudflare
     # Pages project. The project and its custom domain are set up in Cloudflare,
     # not here.
-    # Wrangler needs Node 16+, but emsdk's Node 14 is first on PATH; put a
-    # current Node ahead of it.
-    - name: Set up Node for Wrangler
-      if: github.ref == 'refs/heads/master'
-      uses: actions/setup-node@v4
-      with:
-        node-version: 22
-
     - name: Deploy to Cloudflare Pages
       if: github.ref == 'refs/heads/master'
       uses: cloudflare/wrangler-action@v3
