@@ -11,7 +11,7 @@ on:
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
   BUILD_TYPE: Release
-  EM_VERSION: 2.0.18
+  EM_VERSION: 6.0.12
   EM_CACHE_FOLDER: 'emsdk-cache'
 
 jobs:
@@ -71,7 +71,7 @@ jobs:
       working-directory: ${{runner.workspace}}/build
       shell: bash
       run: |
-        embuilder.py build sdl2 sdl2-image-jpg sdl2-net
+        embuilder build sdl2 sdl2_image-jpg sdl2_net
         cmake --build . --config $BUILD_TYPE -j 2
 
     - name: Prepare Site
