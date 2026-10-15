@@ -95,6 +95,14 @@ jobs:
     # Publish the site (docs + web examples) to the chilichip-sdk Cloudflare
     # Pages project. The project and its custom domain are set up in Cloudflare,
     # not here.
+    # Wrangler needs Node 16+, but emsdk's Node 14 is first on PATH; put a
+    # current Node ahead of it.
+    - name: Set up Node for Wrangler
+      if: github.ref == 'refs/heads/master'
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
     - name: Deploy to Cloudflare Pages
       if: github.ref == 'refs/heads/master'
       uses: cloudflare/wrangler-action@v3
