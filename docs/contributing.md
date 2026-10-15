@@ -1,6 +1,6 @@
 # Working on these docs
 
-This site is built with [MkDocs](https://www.mkdocs.org/) and the [Material](https://squidfunk.github.io/mkdocs-material/) theme from the Markdown files in the SDK's [`docs/`](https://github.com/chili-chip/32blit-sdk/tree/master/docs) folder. Every push to `master` rebuilds it and publishes it to GitHub Pages, next to the web builds of the examples.
+This site is built with [MkDocs](https://www.mkdocs.org/) and the [Material](https://squidfunk.github.io/mkdocs-material/) theme from the Markdown files in the SDK's [`docs/`](https://github.com/chili-chip/32blit-sdk/tree/master/docs) folder. Every push to `master` rebuilds it and publishes it to Cloudflare Pages at <https://sdk.chilichip.eu>, next to the web builds of the examples.
 
 ## Preview locally
 

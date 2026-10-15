@@ -27,7 +27,7 @@ cmake --build build.examples
 
 See [building the examples](../tutorials/index.md#building-the-examples) for console builds.
 
-The older and larger [32blit examples](https://github.com/32blit/32blit-examples) also build with this SDK. They were written for the 32blit's 320×240 screen, so most don't fit the VGC Zero's 128×128 one, but they are a good source of techniques. Some of them run [in your browser](https://chili-chip.github.io/32blit-sdk/web-examples/).
+The older and larger [32blit examples](https://github.com/32blit/32blit-examples) also build with this SDK. They were written for the 32blit's 320×240 screen, so most don't fit the VGC Zero's 128×128 one, but they are a good source of techniques. Some of them run [in your browser](https://sdk.chilichip.eu/web-examples/).
 
 ## Hello World { #hello-world }
 

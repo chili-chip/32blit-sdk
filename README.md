@@ -4,9 +4,9 @@ This is a fork of the [32blit SDK](https://github.com/32blit/32blit-sdk), adapte
 
 Everything from upstream 32blit still works: the same engine and API, the SDL build for Linux, Windows, macOS and the browser, and the 32blit and other RP2040/RP2350 targets. We merge upstream changes regularly, and all credit for the engine, tools and the original Pico port goes to the [32blit team and contributors](https://github.com/32blit/32blit-sdk/graphs/contributors).
 
-**Documentation: <https://chili-chip.github.io/32blit-sdk/>**: installing the tools, your first game, tutorials, example games, guides and the full API reference. The site is built from the [`docs/`](docs/) folder.
+**Documentation: <https://sdk.chilichip.eu/>**: installing the tools, your first game, tutorials, example games, guides and the full API reference. The site is built from the [`docs/`](docs/) folder.
 
-To start a new VGC Zero game, use the [ChiliChip game template](https://github.com/chili-chip/game-template) and follow [Getting started](https://chili-chip.github.io/32blit-sdk/getting-started/).
+To start a new VGC Zero game, use the [ChiliChip game template](https://github.com/chili-chip/game-template) and follow [Getting started](https://sdk.chilichip.eu/getting-started/).
 
 ## What this fork adds
 
@@ -91,7 +91,7 @@ The `32blit-stm32` directory contains the STM32 HAL for 32blit, compatible with 
 
 ## Examples / Projects
 
-Small example games written for the VGC Zero are in [`docs/examples/`](docs/examples/), and each is explained in the [documentation](https://chili-chip.github.io/32blit-sdk/examples/).
+Small example games written for the VGC Zero are in [`docs/examples/`](docs/examples/), and each is explained in the [documentation](https://sdk.chilichip.eu/examples/).
 
 The [32blit-examples](https://github.com/32blit/32blit-examples) repository contains example projects, these can be built into both SDL or STM32 binaries and cover a range of techniques from simple concepts to complete games.
 

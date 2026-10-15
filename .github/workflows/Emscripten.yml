@@ -17,10 +17,8 @@ env:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    # The Deploy to GitHub Pages step pushes the gh-pages branch, so the
-    # job token needs write access (the org default is read-only).
     permissions:
-      contents: write
+      contents: read
 
     steps:
     - uses: actions/checkout@v7
@@ -94,11 +92,22 @@ jobs:
         mkdocs build --strict
         cp -r build-docs/* site
 
-    - name: Deploy to GitHub Pages
-      if: github.ref == 'refs/heads/master' # github.event_name == 'release'
-      uses: crazy-max/ghaction-github-pages@v5
+    # The site (docs + web examples) is hosted on Cloudflare Pages at
+    # https://sdk.chilichip.eu. Needs the CLOUDFLARE_API_TOKEN (Pages: Edit)
+    # and CLOUDFLARE_ACCOUNT_ID repository secrets.
+    - name: Create Cloudflare Pages project
+      if: github.ref == 'refs/heads/master'
+      continue-on-error: true # already exists after the first run
+      uses: cloudflare/wrangler-action@v3
       with:
-        target_branch: gh-pages
-        build_dir: site
-      env:
-        GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+        apiToken: ${{secrets.CLOUDFLARE_API_TOKEN}}
+        accountId: ${{secrets.CLOUDFLARE_ACCOUNT_ID}}
+        command: pages project create chilichip-sdk --production-branch=master
+
+    - name: Deploy to Cloudflare Pages
+      if: github.ref == 'refs/heads/master'
+      uses: cloudflare/wrangler-action@v3
+      with:
+        apiToken: ${{secrets.CLOUDFLARE_API_TOKEN}}
+        accountId: ${{secrets.CLOUDFLARE_ACCOUNT_ID}}
+        command: pages deploy site --project-name=chilichip-sdk --branch=master
