@@ -94,7 +94,7 @@ jobs:
 
     # The site (docs + web examples) is hosted on Cloudflare Pages at
     # https://sdk.chilichip.eu. Needs the CLOUDFLARE_API_TOKEN (Pages: Edit)
-    # and CLOUDFLARE_ACCOUNT_ID repository secrets.
+    # and CLOUDFLARE_ACCOUNT_ID secrets (set for the organisation).
     - name: Create Cloudflare Pages project
       if: github.ref == 'refs/heads/master'
       continue-on-error: true # already exists after the first run
@@ -111,3 +111,16 @@ jobs:
         apiToken: ${{secrets.CLOUDFLARE_API_TOKEN}}
         accountId: ${{secrets.CLOUDFLARE_ACCOUNT_ID}}
         command: pages deploy site --project-name=chilichip-sdk --branch=master
+
+    - name: Attach sdk.chilichip.eu to the Pages project
+      if: github.ref == 'refs/heads/master'
+      continue-on-error: true # already attached after the first run
+      env:
+        CLOUDFLARE_API_TOKEN: ${{secrets.CLOUDFLARE_API_TOKEN}}
+        CLOUDFLARE_ACCOUNT_ID: ${{secrets.CLOUDFLARE_ACCOUNT_ID}}
+      run: |
+        curl -sS --fail-with-body -X POST \
+          "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/chilichip-sdk/domains" \
+          -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+          -H "Content-Type: application/json" \
+          --data '{"name":"sdk.chilichip.eu"}'
