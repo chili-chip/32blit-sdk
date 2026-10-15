@@ -1,0 +1,9 @@
+title: "Text"
+description: "Fonts, alignment, measuring and wrapping text."
+author: ChiliChip
+version: v1.0.0
+category: demo
+icon:
+  file: ../shared/icon.png
+splash:
+  file: cover.png

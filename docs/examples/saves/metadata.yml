@@ -1,0 +1,9 @@
+title: "Saves"
+description: "Keep a high score with read_save, write_save and on_quit."
+author: ChiliChip
+version: v1.0.0
+category: demo
+icon:
+  file: ../shared/icon.png
+splash:
+  file: cover.png

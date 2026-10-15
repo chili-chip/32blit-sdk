@@ -31,16 +31,12 @@ jobs:
         repository: 32blit/32blit-examples
         path: 32blit-examples
 
-    - name: Install deps
-      run: |
-        sudo apt update && sudo apt install doxygen graphviz
-
     - name: Install Python Dependencies
       shell: bash
       run: |
         python3 -m venv .venv
         source .venv/bin/activate
-        python -m pip install -r tools/requirements.txt
+        python -m pip install -r tools/requirements.txt -r docs/requirements.txt
         echo "$VIRTUAL_ENV/bin" >> $GITHUB_PATH
         echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> $GITHUB_ENV
 
@@ -82,8 +78,8 @@ jobs:
 
     - name: Prepare Site
       run: |
-        mkdir -p site/examples
-        cp ../build/*/*.{js,wasm} site/examples
+        mkdir -p site/web-examples
+        cp ../build/*/*.{js,wasm} site/web-examples
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v7
@@ -91,12 +87,12 @@ jobs:
         name: ${{github.event.repository.name}}-${{github.sha}}-web
         path: site
 
-    # build the docs
+    # build the docs site (MkDocs, from docs/) next to the web examples
     - name: Build Docs
       if: github.ref == 'refs/heads/master' # github.event_name == 'release'
       run: |
-        cd 32blit && doxygen doxygen.conf && cd ..
-        cp -r 32blit/documentation/html/* site
+        mkdocs build --strict
+        cp -r build-docs/* site
 
     - name: Deploy to GitHub Pages
       if: github.ref == 'refs/heads/master' # github.event_name == 'release'

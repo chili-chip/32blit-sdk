@@ -1,0 +1,9 @@
+title: "Hello World"
+description: "The smallest game: text and a colour cycle."
+author: ChiliChip
+version: v1.0.0
+category: demo
+icon:
+  file: ../shared/icon.png
+splash:
+  file: cover.png

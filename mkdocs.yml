@@ -1,0 +1,163 @@
+site_name: ChiliChip Game SDK
+site_description: Make games for the ChiliChip VGC Zero console with the 32blit-based ChiliChip Game SDK.
+site_url: https://chili-chip.github.io/32blit-sdk/
+repo_url: https://github.com/chili-chip/32blit-sdk
+repo_name: chili-chip/32blit-sdk
+edit_uri: edit/master/docs/
+copyright: The ChiliChip Game SDK is a fork of the <a href="https://github.com/32blit/32blit-sdk">32blit SDK</a>, MIT licensed.
+
+# the repository's own site/ folder holds the web examples, so build elsewhere
+site_dir: build-docs
+
+exclude_docs: |
+  examples/**/CMakeLists.txt
+  examples/**/*.yml
+  /requirements.txt
+
+theme:
+  name: material
+  logo: assets/chili.svg
+  favicon: assets/chili.svg
+  icon:
+    repo: fontawesome/brands/github
+  font:
+    text: Inter
+    code: JetBrains Mono
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - navigation.indexes
+    - navigation.instant
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - content.action.edit
+    - toc.follow
+
+extra_css:
+  - assets/extra.css
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.snippets:
+      base_path: [docs/examples]
+      check_paths: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - getting-started/index.md
+      - Install the tools: getting-started/install.md
+      - Your first game: getting-started/first-game.md
+      - Run on your computer: getting-started/build-desktop.md
+      - Run on the console: getting-started/build-console.md
+  - Tutorials:
+      - tutorials/index.md
+      - 1. The game loop: tutorials/game-loop.md
+      - 2. Input: tutorials/input.md
+      - 3. Sprites and assets: tutorials/sprites.md
+      - 4. Text: tutorials/text.md
+      - 5. Sound: tutorials/sound.md
+      - 6. Saving progress: tutorials/saving.md
+      - 7. Timers, tweens and particles: tutorials/animation.md
+      - 8. Tile maps: tutorials/tilemaps.md
+      - 9. Make a complete game: tutorials/complete-game.md
+  - Examples: examples/index.md
+  - Guides:
+      - Asset pipeline: guides/assets.md
+      - Metadata and the home screen: guides/metadata.md
+      - Performance and memory: guides/performance.md
+      - Debugging: guides/debugging.md
+      - Publishing a game: guides/publishing.md
+  - VGC Zero:
+      - console/index.md
+      - ChiliChip OS: console/chilichip-os.md
+      - Flashing and the loader: console/flashing.md
+      - Storage, saves and memory: console/storage.md
+      - Display driver: console/display.md
+  - API reference:
+      - api/index.md
+      - Engine and game loop: api/engine.md
+      - Surface and drawing: api/surface.md
+      - Sprites: api/sprites.md
+      - Text and fonts: api/text.md
+      - Input: api/input.md
+      - Audio: api/audio.md
+      - Saves: api/saves.md
+      - Files: api/files.md
+      - System: api/system.md
+      - Timers and tweens: api/timers-tweens.md
+      - Particles: api/particles.md
+      - Maths and types: api/types.md
+      - Tile maps and Mode 7: api/tilemap.md
+      - Menu: api/menu.md
+      - Profiler: api/profiler.md
+      - Multiplayer: api/multiplayer.md
+      - CMake functions: api/cmake.md
+  - Setup:
+      - Linux: setup/linux.md
+      - macOS: setup/macos.md
+      - Windows: setup/windows.md
+      - Windows (WSL): setup/windows-wsl.md
+      - Visual Studio: setup/visual-studio.md
+      - ChromeOS: setup/chromeos.md
+      - Visual Studio Code: setup/vscode.md
+      - Web (Emscripten): setup/emscripten.md
+      - Video capture: setup/video-capture.md
+  - More:
+      - Other hardware:
+          - 32blit handheld: hardware/32blit.md
+          - 32blit firmware: hardware/32blit-firmware.md
+          - 32blit firmware internals: hardware/firmware-internals.md
+          - Pico and PicoSystem: hardware/pico.md
+      - Contributing to the docs: contributing.md
+
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn

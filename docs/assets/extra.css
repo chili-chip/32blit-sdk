@@ -1,0 +1,62 @@
+/* ChiliChip colours on top of Material's default theme */
+:root {
+  --md-primary-fg-color: #c62828;
+  --md-primary-fg-color--light: #e53935;
+  --md-primary-fg-color--dark: #8e0000;
+  --md-accent-fg-color: #ff6d00;
+  --md-accent-fg-color--transparent: rgba(255, 109, 0, 0.1);
+}
+
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #b71c1c;
+  --md-accent-fg-color: #ff9e40;
+  --md-typeset-a-color: #ff8a65;
+}
+
+/* pixel-art screenshots stay crisp when scaled */
+img.screenshot,
+.screenshot img {
+  image-rendering: pixelated;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+img.screenshot {
+  width: 256px;
+  max-width: 100%;
+}
+
+/* example gallery */
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+.gallery > p {
+  display: contents;
+}
+
+.gallery a {
+  display: block;
+  text-align: center;
+  font-weight: 600;
+}
+
+.gallery img {
+  width: 100%;
+  image-rendering: pixelated;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  margin-bottom: 0.4rem;
+}
+
+/* API signature tables: keep signatures on one line where possible */
+.md-typeset table:not([class]) code {
+  white-space: nowrap;
+}
+
+.md-typeset .api-sig {
+  font-size: 0.85em;
+}

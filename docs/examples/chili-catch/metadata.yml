@@ -1,0 +1,9 @@
+title: "Chili Catch"
+description: "Catch the chilis, dodge the bombs. A complete small game."
+author: ChiliChip
+version: v1.0.0
+category: demo
+icon:
+  file: ../shared/icon.png
+splash:
+  file: cover.png
