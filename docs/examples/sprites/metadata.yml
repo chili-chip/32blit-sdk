@@ -1,0 +1,9 @@
+title: "Sprites"
+description: "Spritesheets, animation, transforms and scaling."
+author: ChiliChip
+version: v1.0.0
+category: demo
+icon:
+  file: ../shared/icon.png
+splash:
+  file: cover.png

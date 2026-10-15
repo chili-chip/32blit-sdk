@@ -1,0 +1,9 @@
+title: "Shapes"
+description: "Every drawing primitive on one screen."
+author: ChiliChip
+version: v1.0.0
+category: demo
+icon:
+  file: ../shared/icon.png
+splash:
+  file: cover.png

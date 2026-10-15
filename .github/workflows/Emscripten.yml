@@ -17,10 +17,8 @@ env:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    # The Deploy to GitHub Pages step pushes the gh-pages branch, so the
-    # job token needs write access (the org default is read-only).
     permissions:
-      contents: write
+      contents: read
 
     steps:
     - uses: actions/checkout@v7
@@ -31,16 +29,12 @@ jobs:
         repository: 32blit/32blit-examples
         path: 32blit-examples
 
-    - name: Install deps
-      run: |
-        sudo apt update && sudo apt install doxygen graphviz
-
     - name: Install Python Dependencies
       shell: bash
       run: |
         python3 -m venv .venv
         source .venv/bin/activate
-        python -m pip install -r tools/requirements.txt
+        python -m pip install -r tools/requirements.txt -r docs/requirements.txt
         echo "$VIRTUAL_ENV/bin" >> $GITHUB_PATH
         echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> $GITHUB_ENV
 
@@ -82,8 +76,8 @@ jobs:
 
     - name: Prepare Site
       run: |
-        mkdir -p site/examples
-        cp ../build/*/*.{js,wasm} site/examples
+        mkdir -p site/web-examples
+        cp ../build/*/*.{js,wasm} site/web-examples
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v7
@@ -91,18 +85,20 @@ jobs:
         name: ${{github.event.repository.name}}-${{github.sha}}-web
         path: site
 
-    # build the docs
+    # build the docs site (MkDocs, from docs/) next to the web examples
     - name: Build Docs
       if: github.ref == 'refs/heads/master' # github.event_name == 'release'
       run: |
-        cd 32blit && doxygen doxygen.conf && cd ..
-        cp -r 32blit/documentation/html/* site
+        mkdocs build --strict
+        cp -r build-docs/* site
 
-    - name: Deploy to GitHub Pages
-      if: github.ref == 'refs/heads/master' # github.event_name == 'release'
-      uses: crazy-max/ghaction-github-pages@v5
+    # Publish the site (docs + web examples) to the chilichip-sdk Cloudflare
+    # Pages project. The project and its custom domain are set up in Cloudflare,
+    # not here.
+    - name: Deploy to Cloudflare Pages
+      if: github.ref == 'refs/heads/master'
+      uses: cloudflare/wrangler-action@v3
       with:
-        target_branch: gh-pages
-        build_dir: site
-      env:
-        GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+        apiToken: ${{secrets.CLOUDFLARE_API_TOKEN}}
+        accountId: ${{secrets.CLOUDFLARE_ACCOUNT_ID}}
+        command: pages deploy site --project-name=chilichip-sdk --branch=master

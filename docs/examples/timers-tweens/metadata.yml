@@ -1,0 +1,9 @@
+title: "Timers and Tweens"
+description: "Timers fire callbacks, tweens animate values."
+author: ChiliChip
+version: v1.0.0
+category: demo
+icon:
+  file: ../shared/icon.png
+splash:
+  file: cover.png
