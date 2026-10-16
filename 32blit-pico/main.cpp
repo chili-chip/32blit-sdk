@@ -53,6 +53,13 @@ static uint32_t now() {
   return to_ms_since_boot(get_absolute_time());
 }
 
+#ifdef BUILD_LOADER
+// blit::quit_to_home(): quit after the current frame, the same way as holding HOME
+static void exit_game(bool /*is_error*/) {
+  quit_requested = true;
+}
+#endif
+
 static uint32_t random() {
 	return get_rand_32();
 }
@@ -160,7 +167,11 @@ static const blit::APIConst blit_api_const {
 
   ::now,
   ::random,
+#ifdef BUILD_LOADER
+  ::exit_game,
+#else
   nullptr, // exit
+#endif
   ::debug,
 
   ::open_file,

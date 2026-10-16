@@ -274,6 +274,9 @@ bool launch_file(const char *path) {
 #ifdef BUILD_LOADER
   uint32_t flash_offset = ~0u;
 
+  // games installed or deleted since boot can add or remove handlers
+  create_type_handler_list();
+
   // clear old path
   launch_path[0] = 0;
 
@@ -369,6 +372,9 @@ blit::CanLaunchResult can_launch(const char *path) {
 
   // get the extension
   auto ext = get_file_ext(path);
+
+  if(ext != "blit")
+    create_type_handler_list();
 
   if(ext == "blit") {
     BlitGameHeader header;

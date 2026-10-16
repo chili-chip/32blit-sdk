@@ -40,7 +40,7 @@ Each `.blit` records the API version of the SDK it was built with, and a console
 | 0.4 | system info | `get_system_info()` |
 | 0.5 | save on quit | `on_quit` |
 
-Older games keep working on newer loaders. A game built with this SDK (API 0.5) needs a loader from API 0.5 onwards. If players see "Needs a system update", they should update the loader (see [Flashing and the loader](../console/flashing.md#updating-the-os)); alternatively, build with the older SDK version their loader came with.
+Older games keep working on newer loaders. A game built with this SDK (API 0.6) needs a loader from API 0.6 onwards. If players see "Needs a system update", they should update the loader (see [Flashing and the loader](../console/flashing.md#updating-the-os)); alternatively, build with the older SDK version their loader came with.
 
 ## Checklist
 

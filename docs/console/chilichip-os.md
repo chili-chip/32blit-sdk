@@ -34,6 +34,16 @@ Plug the console into a computer while the home screen is showing and a drive na
 
 `32blit install game.blit` over USB serial still works too.
 
+## Apps that play files
+
+Some apps play files rather than being games themselves, such as citsy, which plays Bitsy games (`.bitsy`). An app like this has `category: handler` and lists the extensions it plays in `filetypes` (see [Metadata and the home screen](../guides/metadata.md#apps-that-play-files)). Install it like any game. The home screen then:
+
+* hides the app itself. It is still listed in **Settings → Games**, where it can be deleted;
+* shows a card for every file with one of its extensions, at the top of the USB drive or one folder down (for example `bitsy-games/`). The card is titled with the file name, and the app's title shows as the author;
+* starts the app with that file when you pick the card. When the app is done, it returns to the home screen.
+
+So to add Bitsy games, copy the `.bitsy` files into a folder on the CHILICHIP drive while the home screen is showing, then eject. The installer only picks up `.blit` files, so other files stay where you put them. **Delete game** on a file's info page deletes the file from the drive.
+
 ## The system menu
 
 Press **HOME** briefly in a game to pause it and open the system menu:

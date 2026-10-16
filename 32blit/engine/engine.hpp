@@ -34,4 +34,8 @@ namespace blit {
   int tick(uint32_t time);
 
   const char *get_launch_path();
+
+  // return to the home screen after this frame, like quitting from the system menu (on_quit runs first)
+  // returns false where there is no home screen to return to (desktop, standalone builds)
+  bool quit_to_home();
 }
