@@ -49,7 +49,7 @@ void settings_enter(Screen screen) {
       break;
 
     case Screen::games:
-      selected_game = std::min(selected_game, std::max(0, int(get_games().size()) - 1));
+      selected_game = std::min(selected_game, std::max(0, int(installed_software().size()) - 1));
       break;
 
     case Screen::storage:
@@ -102,7 +102,8 @@ static void update_settings(uint32_t pressed) {
 }
 
 static void update_games(uint32_t pressed) {
-  int count = get_games().size();
+  auto software = installed_software();
+  int count = software.size();
 
   if(count) {
     if(pressed & Button::DPAD_UP)
@@ -110,7 +111,7 @@ static void update_games(uint32_t pressed) {
     if(pressed & Button::DPAD_DOWN)
       selected_game = (selected_game + 1) % count;
     if(pressed & Button::A)
-      open_info(selected_game, Screen::games);
+      open_info(software[selected_game], Screen::games);
   }
 
   if(pressed & Button::B)
@@ -151,8 +152,8 @@ static void render_settings() {
   rows[Sleep].label = "Screen sleep";
   rows[Sleep].value = sleep_text(settings.sleep_timeout);
 
-  rows[Games].label = "Games";
-  rows[Games].value = std::to_string(get_games().size());
+  rows[Games].label = "Installed software";
+  rows[Games].value = std::to_string(installed_software().size());
 
   rows[Storage].label = "Storage";
   rows[About].label = "About";
@@ -163,15 +164,19 @@ static void render_settings() {
 static void render_games() {
   std::vector<ListRow> rows;
 
-  for(auto &game : get_games())
+  // games, the files apps play (Bitsy games) and the apps themselves (Bitsy)
+  for(int index : installed_software()) {
+    auto &game = get_games()[index];
     rows.push_back({game.title, format_size(game.size)});
+  }
 
-  if(rows.empty()) {
-    rows.push_back({"No games installed"});
+  bool empty = rows.empty();
+  if(empty) {
+    rows.push_back({"Nothing installed"});
     rows.back().dim = true;
   }
 
-  draw_list("Games", rows, get_games().empty() ? -1 : selected_game);
+  draw_list("Installed software", rows, empty ? -1 : selected_game);
 }
 
 static std::string usage_text(uint32_t used, uint32_t total) {

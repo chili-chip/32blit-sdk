@@ -274,6 +274,9 @@ bool launch_file(const char *path) {
 #ifdef BUILD_LOADER
   uint32_t flash_offset = ~0u;
 
+  // games installed or deleted since boot can add or remove handlers
+  create_type_handler_list();
+
   // clear old path
   launch_path[0] = 0;
 
@@ -345,6 +348,12 @@ bool launch_file(const char *path) {
     }
   }
 
+  // no installed app plays this file type (or the .blit wasn't found)
+  if(flash_offset == ~0u) {
+    launch_path[0] = 0;
+    return false;
+  }
+
   auto header = (BlitGameHeader *)(FLASH_BASE + flash_offset);
   // check header magic + device
   if(header->magic != blit_game_magic || header->device_id != DEVICE_ID)
@@ -369,6 +378,9 @@ blit::CanLaunchResult can_launch(const char *path) {
 
   // get the extension
   auto ext = get_file_ext(path);
+
+  if(ext != "blit")
+    create_type_handler_list();
 
   if(ext == "blit") {
     BlitGameHeader header;

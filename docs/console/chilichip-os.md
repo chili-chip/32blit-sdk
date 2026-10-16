@@ -18,7 +18,7 @@ ChiliChip OS is what runs on the VGC Zero when you switch it on. It has three pa
 * The carousel shows one cover per game: the selected game's splash image large in the middle, its neighbours smaller at the edges. **Left** and **right** scroll, **A** plays.
 * Games that have never been played come first, so new installs show up at the front, then the rest from most recently played.
 * **Y** opens the game's info page: author, version, size and description, with **Play**, **Delete game** and **Delete save data**. Deleting a game that has saves asks whether to delete them too; **B** keeps them.
-* The last tile, or **MENU**, opens **Settings**: brightness, volume, screen sleep, the games list with sizes, storage used and free, and **About** with the OS version, firmware version and serial number.
+* The last tile, or **MENU**, opens **Settings**: brightness, volume, screen sleep, **Installed software** (games, the files that apps play such as Bitsy games, and the apps themselves, with sizes; pick one to see its info or delete it), storage used and free, and **About** with the OS version, firmware version and serial number.
 
 A game's cover is its `splash` image from `metadata.yml`, ideally 128×96. Games without one get a coloured card with their title. See [Metadata and the home screen](../guides/metadata.md).
 
@@ -33,6 +33,18 @@ Plug the console into a computer while the home screen is showing and a drive na
 * Nothing is installed while the computer still has the drive mounted, because it caches the drive's contents. Until you eject, the home screen can still start a `.blit` straight from the drive.
 
 `32blit install game.blit` over USB serial still works too.
+
+## Apps that play files
+
+Some apps play files rather than being games themselves, such as citsy, which plays Bitsy games (`.bitsy`). An app like this has `category: handler` and lists the extensions it plays in `filetypes` (see [Metadata and the home screen](../guides/metadata.md#apps-that-play-files)). Install it like any game. The home screen then:
+
+* hides the app itself. It is listed in **Settings → Installed software**, where it can be deleted. Deleting it removes its file cards too;
+* shows a card for every file with one of its extensions, at the top of the USB drive or one folder down (for example `bitsy-games/`). The card is titled with the file name, and the app's title shows as the author. These files are also listed in **Settings → Installed software**, and deleting one there (or from its info on the home screen) removes the file from the drive;
+* starts the app with that file when you pick the card. When the app is done, it returns to the home screen.
+
+The cards only exist while the app is installed: delete the app and its files stay on the drive but leave the home screen, and the loader refuses to start a file that no installed app plays.
+
+So to add Bitsy games, copy the `.bitsy` files into a folder on the CHILICHIP drive while the home screen is showing, then eject. The installer only picks up `.blit` files, so other files stay where you put them. **Delete game** on a file's info page deletes the file from the drive.
 
 ## The system menu
 

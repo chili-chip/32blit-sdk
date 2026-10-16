@@ -34,11 +34,11 @@ static const char *dialog_no_label = nullptr; // no B choice without one
 static std::function<void()> dialog_on_yes, dialog_on_no;
 
 static int num_tiles() {
-  return get_games().size() + 1;
+  return home_game_count() + 1;
 }
 
 static bool is_settings_tile(int index) {
-  return index == int(get_games().size());
+  return index == home_game_count();
 }
 
 void go_to(Screen screen) {
@@ -206,7 +206,7 @@ static void render_home() {
     screen.pen = theme::text;
     screen.text("Settings", fat_font, title_r, true, TextAlign::top_center);
 
-    if(get_games().empty()) {
+    if(home_game_count() == 0) {
       screen.pen = theme::hot;
       screen.text("Copy games to the USB drive", minimal_font, sub_r, true, TextAlign::top_center);
     }
@@ -257,9 +257,11 @@ static void update_home(uint32_t pressed) {
 
 static void after_delete() {
   // stay on the same position, or the last game
-  int count = get_games().size();
+  int count = home_game_count();
   if(info_back == Screen::home)
     select_game(std::min(info_game, count));
+  else
+    select_game(selected); // keep the carousel in range, deleting an app also removes its files' tiles
 
   go_to(info_back);
 }

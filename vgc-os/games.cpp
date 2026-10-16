@@ -23,6 +23,7 @@ struct PlayHistory {
 static constexpr int history_slot = 0;
 
 static std::vector<Game> games;
+static int num_home_games = 0;
 static std::vector<Surface *> covers;
 static std::vector<bool> cover_tried;
 
@@ -30,9 +31,27 @@ std::vector<Game> &get_games() {
   return games;
 }
 
+int home_game_count() {
+  return num_home_games;
+}
+
+std::vector<int> installed_software() {
+  // everything: the home screen's games (installed ones and the files apps play), then the apps
+  std::vector<int> ret(games.size());
+  for(int i = 0; i < int(games.size()); i++)
+    ret[i] = i;
+  return ret;
+}
+
 template<size_t N>
 static std::string fixed_string(const char (&buf)[N]) {
   return std::string(buf, std::find(buf, buf + N, '\0'));
+}
+
+static std::string lower(std::string s) {
+  for(auto &c : s)
+    c = tolower(c);
+  return s;
 }
 
 static bool read_metadata(const char *meta, uint16_t len, Game &game, bool &is_launcher) {
@@ -50,6 +69,12 @@ static bool read_metadata(const char *meta, uint16_t len, Game &game, bool &is_l
   if(off + 8 + sizeof(RawTypeMetadata) <= len && memcmp(meta + off, "BLITTYPE", 8) == 0) {
     auto type = reinterpret_cast<const RawTypeMetadata *>(meta + off + 8);
     is_launcher = strncmp(type->category, "launcher", sizeof(type->category)) == 0;
+    game.is_app = strncmp(type->category, "handler", sizeof(type->category)) == 0;
+
+    if(game.is_app && off + 8 + sizeof(RawTypeMetadata) + type->num_filetypes * 5 <= len) {
+      for(int i = 0; i < type->num_filetypes; i++)
+        game.filetypes.push_back(lower(fixed_string(type->filetypes[i])));
+    }
   }
 
   return true;
@@ -136,6 +161,65 @@ static void add_files() {
     game.meta = game.meta_copy.data();
 }
 
+// files on the drive that an installed app plays, at the top or one folder down (bitsy-games/...)
+static void add_app_files() {
+  std::vector<Game> files;
+
+  auto app_for = [](const std::string &name) -> const Game * {
+    auto dot = name.find_last_of('.');
+    if(name.empty() || name[0] == '.' || dot == std::string::npos)
+      return nullptr;
+
+    auto ext = lower(name.substr(dot + 1));
+    for(auto &game : games) {
+      if(!game.is_app)
+        continue;
+      // like the loader, which compares the first 4 characters: "bits" plays .bitsy
+      for(auto &type : game.filetypes) {
+        if(!type.empty() && ext.compare(0, 4, type) == 0)
+          return &game;
+      }
+    }
+    return nullptr;
+  };
+
+  auto add_dir = [&](const std::string &dir) {
+    for(auto &file : list_files(dir.empty() ? "/" : dir)) {
+      if(file.flags & FileFlags::directory)
+        continue;
+
+      auto app = app_for(file.name);
+      if(!app)
+        continue;
+
+      Game game;
+      game.title = file.name.substr(0, file.name.find_last_of('.'));
+      game.author = app->title;
+      game.description = "Plays with " + app->title + ".";
+      game.path = dir.empty() ? file.name : dir + "/" + file.name;
+      game.size = file.size;
+      game.is_app_file = true;
+      files.push_back(std::move(game));
+    }
+  };
+
+  bool any_apps = std::any_of(games.begin(), games.end(), [](const Game &game) { return game.is_app; });
+  if(!any_apps)
+    return;
+
+  add_dir("");
+  for(auto &dir : list_files("/")) {
+    // .blit (saves) and .system are ours
+    if(dir.flags & FileFlags::directory && !dir.name.empty() && dir.name[0] != '.')
+      add_dir(dir.name);
+  }
+
+  std::sort(files.begin(), files.end(), [](const Game &a, const Game &b) { return a.title < b.title; });
+
+  for(auto &file : files)
+    games.push_back(std::move(file));
+}
+
 void load_games() {
   for(auto cover : covers) {
     if(cover) {
@@ -151,6 +235,8 @@ void load_games() {
     add_installed_games();
   else
     add_files();
+
+  add_app_files();
 
   PlayHistory history;
   if(!read_save(history, history_slot) || history.magic != PlayHistory::expected_magic)
@@ -168,6 +254,10 @@ void load_games() {
   std::stable_sort(games.begin(), games.end(), [&rank](const Game &a, const Game &b) {
     return rank(a) < rank(b);
   });
+
+  // apps aren't on the home screen, keep them at the end for Settings > Installed software
+  std::stable_partition(games.begin(), games.end(), [](const Game &game) { return !game.is_app; });
+  num_home_games = std::count_if(games.begin(), games.end(), [](const Game &game) { return !game.is_app; });
 
   covers.assign(games.size(), nullptr);
   cover_tried.assign(games.size(), false);

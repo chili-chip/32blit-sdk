@@ -118,6 +118,16 @@ const char *get_launch_path();
 
 The file the game was opened with, if a launcher started it to open a file (see `filetypes` in [metadata](../guides/metadata.md#fields)), or `nullptr`. On the desktop, set it with `--launch_path <file>`.
 
+### `quit_to_home`
+
+```cpp
+bool quit_to_home();
+```
+
+Returns to the home screen after the current frame, the same way as **Quit to home** in the system menu: `on_quit` runs first. An app that played a file from the home screen calls it when the player is done with the file.
+
+**API 0.6+.** It returns `false` and does nothing where there is no home screen to return to: the desktop and standalone `.uf2` builds. Fall back to the game's own menu then.
+
 ## Metadata and version
 
 ```cpp

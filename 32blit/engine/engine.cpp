@@ -151,4 +151,12 @@ namespace blit {
     return api.get_launch_path();
   }
 
+  bool quit_to_home() {
+    if(!api.exit)
+      return false;
+
+    api.exit(false);
+    return true;
+  }
+
 }
