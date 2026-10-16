@@ -14,10 +14,10 @@ struct Game {
   bool installed = false;
 
   // an installed app with category "handler" plays files of its filetypes and isn't shown on the
-  // home screen itself, only in Settings > Games
+  // home screen itself, only in Settings > Installed software
   bool is_app = false;
   std::vector<std::string> filetypes;
-  // a file that an app plays, rather than installed software
+  // a file on the drive that an app plays (deleting it removes the file)
   bool is_app_file = false;
 
   // packed metadata, read lazily for the cover
@@ -31,8 +31,8 @@ struct Game {
 std::vector<Game> &get_games();
 // how many of get_games() go on the home screen: everything but the apps, which come last
 int home_game_count();
-// indices into get_games() of installed software (games and apps, not the files apps play),
-// for Settings > Installed software
+// indices into get_games() for Settings > Installed software: games, the files apps play, and
+// the apps themselves
 std::vector<int> installed_software();
 void load_games();
 

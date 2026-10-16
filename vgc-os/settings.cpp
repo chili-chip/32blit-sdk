@@ -164,7 +164,7 @@ static void render_settings() {
 static void render_games() {
   std::vector<ListRow> rows;
 
-  // games and apps (such as a Bitsy player), not the files the apps play
+  // games, the files apps play (Bitsy games) and the apps themselves (Bitsy)
   for(int index : installed_software()) {
     auto &game = get_games()[index];
     rows.push_back({game.title, format_size(game.size)});

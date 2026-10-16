@@ -36,11 +36,10 @@ int home_game_count() {
 }
 
 std::vector<int> installed_software() {
-  std::vector<int> ret;
-  for(int i = 0; i < int(games.size()); i++) {
-    if(!games[i].is_app_file)
-      ret.push_back(i);
-  }
+  // everything: the home screen's games (installed ones and the files apps play), then the apps
+  std::vector<int> ret(games.size());
+  for(int i = 0; i < int(games.size()); i++)
+    ret[i] = i;
   return ret;
 }
 
@@ -256,7 +255,7 @@ void load_games() {
     return rank(a) < rank(b);
   });
 
-  // apps aren't on the home screen, keep them at the end for Settings > Games
+  // apps aren't on the home screen, keep them at the end for Settings > Installed software
   std::stable_partition(games.begin(), games.end(), [](const Game &game) { return !game.is_app; });
   num_home_games = std::count_if(games.begin(), games.end(), [](const Game &game) { return !game.is_app; });
 
