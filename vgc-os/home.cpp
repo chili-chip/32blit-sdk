@@ -260,6 +260,8 @@ static void after_delete() {
   int count = home_game_count();
   if(info_back == Screen::home)
     select_game(std::min(info_game, count));
+  else
+    select_game(selected); // keep the carousel in range, deleting an app also removes its files' tiles
 
   go_to(info_back);
 }

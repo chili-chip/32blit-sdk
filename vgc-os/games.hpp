@@ -17,6 +17,8 @@ struct Game {
   // home screen itself, only in Settings > Games
   bool is_app = false;
   std::vector<std::string> filetypes;
+  // a file that an app plays, rather than installed software
+  bool is_app_file = false;
 
   // packed metadata, read lazily for the cover
   const char *meta = nullptr;
@@ -29,6 +31,9 @@ struct Game {
 std::vector<Game> &get_games();
 // how many of get_games() go on the home screen: everything but the apps, which come last
 int home_game_count();
+// indices into get_games() of installed software (games and apps, not the files apps play),
+// for Settings > Installed software
+std::vector<int> installed_software();
 void load_games();
 
 // splash image of a game, decoded on first use and cached for nearby games

@@ -35,6 +35,15 @@ int home_game_count() {
   return num_home_games;
 }
 
+std::vector<int> installed_software() {
+  std::vector<int> ret;
+  for(int i = 0; i < int(games.size()); i++) {
+    if(!games[i].is_app_file)
+      ret.push_back(i);
+  }
+  return ret;
+}
+
 template<size_t N>
 static std::string fixed_string(const char (&buf)[N]) {
   return std::string(buf, std::find(buf, buf + N, '\0'));
@@ -190,6 +199,7 @@ static void add_app_files() {
       game.description = "Plays with " + app->title + ".";
       game.path = dir.empty() ? file.name : dir + "/" + file.name;
       game.size = file.size;
+      game.is_app_file = true;
       files.push_back(std::move(game));
     }
   };

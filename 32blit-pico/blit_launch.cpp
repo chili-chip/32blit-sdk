@@ -348,6 +348,12 @@ bool launch_file(const char *path) {
     }
   }
 
+  // no installed app plays this file type (or the .blit wasn't found)
+  if(flash_offset == ~0u) {
+    launch_path[0] = 0;
+    return false;
+  }
+
   auto header = (BlitGameHeader *)(FLASH_BASE + flash_offset);
   // check header magic + device
   if(header->magic != blit_game_magic || header->device_id != DEVICE_ID)
