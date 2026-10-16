@@ -82,7 +82,7 @@ These are set for the console in `32blit-pico/board/chilichip_vgc/config.h` and 
 | `AUTO_INSTALL` | `.blit` files on the drive install after eject; the drive is read-only while a game runs (loader only) |
 | `STORAGE_VOLUME_LABEL` | the drive label, `CHILICHIP`; applied at boot, so older drives are relabelled |
 | `USB_VENDOR_STR`, `USB_PRODUCT_STR` | the USB device name, "ChiliChip Console" |
-| `BATTERY_ADC_PIN`, `BATTERY_DIVIDER` | battery sensing on GPIO 29 through a ÷3 divider |
+| `BATTERY_ADC_PIN`, `BATTERY_DIVIDER`, `BATTERY_OFFSET_MV` | battery sensing on GPIO 29 through a ÷3 divider, plus the 0.3 V diode drop in front of it |
 | `LCD_MAX_CLOCK` | the display's SPI clock cap, 20 MHz |
 | `BLIT_ENABLE_CORE1` | mix audio on the second core |
 | `BLIT_LOADER_RAM_KB` | RAM reserved for the loader, 64 KB |

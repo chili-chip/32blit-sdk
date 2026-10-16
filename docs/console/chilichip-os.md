@@ -61,7 +61,7 @@ Games and music keep running while the screen is off, and an install in progress
 
 ## Battery
 
-The loader reads the battery on GPIO 29 four times a second and smooths it. The percentage curve and the ÷3 divider in `BATTERY_DIVIDER` are inferred from the board maker's demos and still need measuring against a multimeter, so treat the percentage as approximate. "USB connected" means a computer has enumerated the console; a charger alone doesn't count.
+The loader reads the battery on GPIO 29 four times a second and smooths it. GPIO 29 sees VSYS through a ÷3 divider (`BATTERY_DIVIDER`), and VSYS sits one Schottky diode below the battery, so the loader adds that diode's drop back (`BATTERY_OFFSET_MV`, 300 mV). The drop varies a little with load, so treat the percentage as approximate. With USB power plugged in, VSYS comes from USB instead and the battery reads full. "USB connected" means a computer has enumerated the console; a charger alone doesn't count.
 
 ## Updating the home screen
 
