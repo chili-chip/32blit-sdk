@@ -72,6 +72,34 @@ With the console running the loader and connected over USB, the 32blit tool inst
 32blit install game.blit
 ```
 
+### Serial commands
+
+Tools talk to the loader over the USB serial port. Each command starts with `32BL` and a four-letter name. Strings end with a NUL byte and numbers are little-endian.
+
+| Command | Sends | Loader replies | Use |
+| ------- | ----- | -------------- | --- |
+| `32BLPROG` | file name, size, data | `32BL__OK` and the flash block (uint16) | install a `.blit` |
+| `32BLSAVE` | path, size, data | `32BL__OK` | write a file to the drive |
+| `32BL__LS` | nothing | per game: offset, size, metadata; then `0xFFFFFFFF` | list installed games |
+| `32BLLNCH` | path | nothing | launch a game or file |
+| `32BLERSE` | flash offset (uint32) | nothing | delete a game |
+| `32BLVERS` | nothing | `32BLVERS`, the loader version, API major and minor (uint16 each) | check the firmware version |
+
+The loader version is the release tag it was built from, for example `v1.0.1`, or the `git describe` output for a local build. A loader older than this command does not answer `32BLVERS`, so tools treat no answer as out of date.
+
+```python
+import serial, struct
+
+with serial.Serial("/dev/ttyACM0", timeout=2) as port:
+    port.write(b"32BLVERS")
+    assert port.read(8) == b"32BLVERS"
+    version = b""
+    while (c := port.read(1)) not in (b"\0", b""):
+        version += c
+    api_major, api_minor = struct.unpack("<HH", port.read(4))
+    print(version.decode(), f"API {api_major}.{api_minor}")
+```
+
 ## Build options
 
 These are set for the console in `32blit-pico/board/chilichip_vgc/config.h` and `config.cmake`. You only need them when changing the OS itself.
@@ -87,4 +115,4 @@ These are set for the console in `32blit-pico/board/chilichip_vgc/config.h` and 
 | `BLIT_ENABLE_CORE1` | mix audio on the second core |
 | `BLIT_LOADER_RAM_KB` | RAM reserved for the loader, 64 KB |
 
-The install logic is `install_blit_file()` in `32blit-pico/blit_launch.cpp`, the drive watcher is `32blit-pico/installer.cpp`, and the system menu is `32blit-pico/system_menu.cpp`.
+The install logic is `install_blit_file()` in `32blit-pico/blit_launch.cpp`, the serial commands are in `32blit-pico/usb.cpp`, the drive watcher is `32blit-pico/installer.cpp`, and the system menu is `32blit-pico/system_menu.cpp`.
