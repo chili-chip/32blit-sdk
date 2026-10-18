@@ -76,23 +76,27 @@ With the console running the loader and connected over USB, the 32blit tool inst
 
 Tools talk to the loader over the USB serial port. Each command starts with `32BL` and a four-letter name. Strings end with a NUL byte and numbers are little-endian.
 
+The loader only acts on a command once the byte after its name arrives. Commands with no arguments (`__LS`, `VERS`) are sent with a trailing NUL, or the loader waits.
+
 | Command | Sends | Loader replies | Use |
 | ------- | ----- | -------------- | --- |
 | `32BLPROG` | file name, size, data | `32BL__OK` and the flash block (uint16) | install a `.blit` |
 | `32BLSAVE` | path, size, data | `32BL__OK` | write a file to the drive |
-| `32BL__LS` | nothing | per game: offset, size, metadata; then `0xFFFFFFFF` | list installed games |
+| `32BL__LS` | NUL | per game: offset, size, metadata; then `0xFFFFFFFF` | list installed games |
 | `32BLLNCH` | path | nothing | launch a game or file |
 | `32BLERSE` | flash offset (uint32) | nothing | delete a game |
-| `32BLVERS` | nothing | `32BLVERS`, the loader version, API major and minor (uint16 each) | check the firmware version |
+| `32BLVERS` | NUL | `32BLVERS`, the loader version, API major and minor (uint16 each) | check the firmware version |
 
-The loader version is the release tag it was built from, for example `v1.0.1`, or the `git describe` output for a local build. A loader older than this command does not answer `32BLVERS`, so tools treat no answer as out of date.
+The loader version is the release tag it was built from, for example `v1.0.1`, or the `git describe` output for a local build. A loader older than this command prints `got: 32BLVERS` and a line break instead. Tools read that line, so it does not end up in front of the next reply, and treat the loader as out of date.
 
 ```python
 import serial, struct
 
 with serial.Serial("/dev/ttyACM0", timeout=2) as port:
-    port.write(b"32BLVERS")
-    assert port.read(8) == b"32BLVERS"
+    port.write(b"32BLVERS\0")
+    if port.read(8) != b"32BLVERS":
+        port.readline()  # older loader: "got: 32BLVERS"
+        raise SystemExit("loader is older than 32BLVERS")
     version = b""
     while (c := port.read(1)) not in (b"\0", b""):
         version += c
