@@ -33,6 +33,18 @@ Multiplayer *blit_multiplayer;
 Renderer *blit_renderer;
 Audio *blit_audio;
 
+#ifdef __EMSCRIPTEN__
+extern "C" {
+EMSCRIPTEN_KEEPALIVE int blit_set_audio_muted(int muted) {
+	if (blit_audio == nullptr || !blit_audio->set_muted(muted != 0)) {
+		return 0;
+	}
+
+	return 1;
+}
+}
+#endif
+
 const char *launch_path = nullptr;
 
 #ifdef VIDEO_CAPTURE

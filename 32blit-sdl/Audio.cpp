@@ -18,17 +18,20 @@ Audio::Audio() {
 
     desired.samples = 256;
     desired.callback = _audio_callback;
+    desired.userdata = this;
 
     audio_device = SDL_OpenAudioDevice(nullptr, 0, &desired, &audio_spec, 0);
 
     if(audio_device == 0){
         std::cerr << "Audio Init Failed: " << SDL_GetError() << std::endl;
+        return;
     }
 
     SDL_PauseAudioDevice(audio_device, 0);
 }
 
 Audio::~Audio() {
+    if(audio_device == 0) return;
     SDL_PauseAudioDevice(audio_device, 1);
     SDL_CloseAudioDevice(audio_device);
 }
@@ -42,5 +45,10 @@ static void _audio_bufferfill(short *buffer, int buffer_size){
 }
 
 static void _audio_callback(void *userdata, uint8_t *stream, int len){
+    Audio *audio = static_cast<Audio *>(userdata);
+    if(audio->is_muted()) {
+        memset(stream, 0, len);
+        return;
+    }
     _audio_bufferfill((short *)stream, len / 2);
 }
