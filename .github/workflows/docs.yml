@@ -1,0 +1,44 @@
+name: Docs
+
+on:
+  push:
+    branches:
+      - '**' # only run on branches
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build site and examples
+    runs-on: ubuntu-22.04
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Install deps
+      run: |
+        sudo apt update && sudo apt install libsdl2-dev libsdl2-image-dev libsdl2-net-dev
+
+    - name: Install Python Dependencies
+      shell: bash
+      run: |
+        python3 -m venv .venv
+        source .venv/bin/activate
+        python -m pip install -r tools/requirements.txt -r docs/requirements.txt
+        echo "$VIRTUAL_ENV/bin" >> $GITHUB_PATH
+        echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> $GITHUB_ENV
+
+    # --strict fails on broken links, missing anchors and missing snippet files
+    - name: Build Docs
+      run: mkdocs build --strict
+
+    # Problem matching
+    - uses: ammaraskar/gcc-problem-matcher@master
+
+    # the examples are included in the docs, so make sure they still build
+    - name: Build Examples
+      run: |
+        cmake -S docs/examples -B build.examples -DCMAKE_BUILD_TYPE=Release
+        cmake --build build.examples -j 2

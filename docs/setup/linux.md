@@ -1,0 +1,121 @@
+# Building & Running on Linux
+
+These instructions cover building 32blit on Linux.
+
+## Prerequisites
+
+You'll need to install:
+ - Git
+ - CMake (at least 3.9)
+ - Make (or another build tool like Ninja)
+ - Python (at least 3.6) + pip
+ - [The 32blit tools](https://github.com/32blit/32blit-tools)
+
+For local builds:
+ - GCC
+ - SDL2 + SDL2_image + SDL2_net
+
+For 32Blit device builds:
+ - Arm Embedded GCC (`gcc-arm-none-eabi`, versions 8.x-14.x should work)
+
+New enough versions of these exist in at least Debian "bullseye" and Ubuntu 20.04.
+
+Install them with apt like so:
+
+```
+sudo apt install git gcc g++ gcc-arm-none-eabi cmake make \
+python3 python3-pip python3-setuptools python3-venv \
+libsdl2-dev libsdl2-image-dev libsdl2-net-dev unzip
+```
+
+Then install the 32blit tools from the SDK's `tools/requirements.txt`. It installs the `32blit` command (which pulls in `construct`, `bitstring` and the other Python dependencies) and pins `bitstring<5`, because bitstring 5 removed `ConstBitStream`, which the tools still use.
+
+Recent distributions (Debian 12, Ubuntu 23.04 and later) refuse `pip install` outside a virtual environment ("externally-managed-environment", [PEP 668](https://peps.python.org/pep-0668/)), so create one first:
+
+```
+python3 -m venv ~/venvs/32blit
+source ~/venvs/32blit/bin/activate
+python3 -m pip install -r tools/requirements.txt
+```
+
+Run the commands from the root of your `32blit-sdk` checkout, and activate the venv (`source ~/venvs/32blit/bin/activate`) in every new terminal before building.
+
+## Building & Running on the console
+
+To build for the VGC Zero, install the console tools from [Install](../getting-started/install.md#console-tools) and follow [Run on the console](../getting-started/build-console.md). For the original 32blit, see [Building & Running On 32Blit](../hardware/32blit.md).
+
+## Building & Running Locally
+
+First you need something to build. The [32blit-examples](https://github.com/32blit/32blit-examples) repository includes a series of demos showcasing various 32blit SDK features. These instructions will assume you're building those and have cloned or extracted that repository alongside 32blit-sdk:
+
+```shell
+git clone https://github.com/32blit/32blit-examples
+```
+
+Your directory tree should look something like:
+
+- root_dir
+    - 32blit-sdk
+    - 32blit-examples
+
+Create a build directory and configure the examples. The 32blit-sdk should be automatically detected:
+
+```shell
+cd 32blit-examples
+mkdir build
+cd build
+cmake ..
+```
+
+Now to make any example, type:
+
+```shell
+make example-name
+```
+
+For example:
+
+```shell
+make raycaster
+```
+
+This will produce `examples/raycaster/raycaster` which you should run with:
+
+```shell
+./examples/raycaster/raycaster
+```
+
+### Build Everything
+
+Alternatively you can build everything by just typing:
+
+```shell
+make
+```
+
+When the build completes you should be able to run any example.
+
+## Troubleshooting
+
+### pip3 warns about /home/user/.local/bin not on PATH
+
+If you're running Ubuntu, Pop!_OS or similar you should be able to fix this for your current session by running:
+
+```
+source ~/.profile
+```
+
+Since `$HOME/.local/bin` is included in `$PATH` if it exists.
+
+Otherwise, add something like the following to `~/.profile`:
+
+```bash
+# set PATH so it includes user's private bin if it exists
+if [ -d "$HOME/.local/bin" ] ; then
+    PATH="$HOME/.local/bin:$PATH"
+fi
+```
+
+And make sure to "source" it to update your current session.
+
+Now invoking `32blit` should work.

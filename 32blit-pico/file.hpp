@@ -11,3 +11,6 @@ void storage_host_written();
 bool is_fs_available();
 
 const char *get_save_path();
+
+// size and free space of the storage in bytes
+bool get_storage_usage(uint32_t &total, uint32_t &free);

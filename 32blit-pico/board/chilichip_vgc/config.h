@@ -25,13 +25,26 @@
 
 #define LED_PIN 16
 
-// Battery sense on the Waveshare RP2350-Plus (WAVESHARE_BAT_ADC_PIN). The
-// divide-by-3 is inferred from Waveshare's demos, not yet measured.
+// Battery sense on the Waveshare RP2350-Plus. Per the schematic GPIO29 reads
+// VSYS through a 200K/100K divider (R1/R7), and VSYS is fed from the battery
+// through a MBR230LSFT1G Schottky (D2), so add its ~0.3 V drop back to get
+// the battery voltage. Without it a full 4.2 V cell read ~3.9 V (63%).
 #define BATTERY_ADC_PIN 29
 #define BATTERY_DIVIDER 3.0f
+#define BATTERY_OFFSET_MV 300
 
 // Short press of HOME in a game opens the system menu (loader only)
 #define SYSTEM_MENU 1
+
+// .blit files copied onto the USB drive install on the home screen once the
+// drive is ejected, and the drive is read-only while a game runs (loader only)
+#define AUTO_INSTALL 1
+#define CONSOLE_NAME "ChiliChip"
+
+// USB device name ("ChiliChip Console") and drive label (FAT allows 11 characters)
+#define USB_VENDOR_STR "ChiliChip"
+#define USB_PRODUCT_STR "Console"
+#define STORAGE_VOLUME_LABEL "CHILICHIP"
 
 #define LCD_SCK_PIN 18
 #define LCD_MOSI_PIN 19

@@ -1,0 +1,9 @@
+title: "Input"
+description: "Move a square with the d-pad and see which buttons are held."
+author: ChiliChip
+version: v1.0.0
+category: demo
+icon:
+  file: ../shared/icon.png
+splash:
+  file: cover.png

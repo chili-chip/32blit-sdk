@@ -25,11 +25,11 @@ if (NOT DEFINED BLIT_ONCE)
 	get_filename_component(PYTHON_USER_EXECUTABLE "${Python_EXECUTABLE}" NAME)
 
 	if(${VERSION_STATUS})
-		message(FATAL_ERROR "32Blit tools not found!\nInstall with: ${PYTHON_USER_EXECUTABLE} -m pip install 32blit\n")
+		message(FATAL_ERROR "32Blit tools not found!\nInstall with: ${PYTHON_USER_EXECUTABLE} -m pip install -r \"${CMAKE_CURRENT_LIST_DIR}/tools/requirements.txt\"\n")
 	endif()
 
 	if("${TOOLS_VERSION}" VERSION_LESS "${BLIT_MINIMUM_TOOLS_VERSION}")
-		message(FATAL_ERROR "32Blit tools out of date!\nYou have ${TOOLS_VERSION}, we need >= ${BLIT_MINIMUM_TOOLS_VERSION}\nUpdate with: ${PYTHON_USER_EXECUTABLE} -m pip install --upgrade 32blit\n")
+		message(FATAL_ERROR "32Blit tools out of date!\nYou have ${TOOLS_VERSION}, we need >= ${BLIT_MINIMUM_TOOLS_VERSION}\nUpdate with: ${PYTHON_USER_EXECUTABLE} -m pip install --upgrade -r \"${CMAKE_CURRENT_LIST_DIR}/tools/requirements.txt\"\n")
 	endif()
 
 	if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)

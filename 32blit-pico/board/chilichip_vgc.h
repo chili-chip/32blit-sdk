@@ -3,6 +3,11 @@
 
 #define CHILICHIP_VGC
 
+// The SDK only reads this from the board header named by PICO_BOARD, not from
+// pico2.h below, so without it a build that doesn't pass -DPICO_PLATFORM
+// silently targets the RP2040.
+pico_board_cmake_set(PICO_PLATFORM, rp2350-arm-s)
+
 // For ChiliChip VGC board - based on RP2350 (Pico 2)
 // Override default pin assignments before including base board
 

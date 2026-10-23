@@ -9,6 +9,7 @@
 #include "pico/binary_info.h"
 #include "pico/multicore.h"
 #include "pico/rand.h"
+#include "pico/unique_id.h"
 #include "pico/stdlib.h"
 
 #include "audio.hpp"
@@ -18,9 +19,11 @@
 #include "display.hpp"
 #include "file.hpp"
 #include "input.hpp"
+#include "installer.hpp"
 #include "led.hpp"
 #include "multiplayer.hpp"
 #include "power.hpp"
+#include "screen_sleep.hpp"
 #include "settings.hpp"
 #include "storage.hpp"
 #include "system_menu.hpp"
@@ -37,6 +40,10 @@ int (*do_tick)(uint32_t time) = blit::tick;
 static alarm_id_t home_hold_alarm_id = 0;
 static bool home_held = false;
 
+// holding HOME asks the main loop to quit, so the game can save first
+static volatile bool quit_requested = false;
+static alarm_id_t quit_timeout_alarm_id = 0;
+
 // override terminate handler to save ~20-30k
 namespace __cxxabiv1 {
   std::terminate_handler __terminate_handler = std::abort;
@@ -45,6 +52,13 @@ namespace __cxxabiv1 {
 static uint32_t now() {
   return to_ms_since_boot(get_absolute_time());
 }
+
+#ifdef BUILD_LOADER
+// blit::quit_to_home(): quit after the current frame, the same way as holding HOME
+static void exit_game(bool /*is_error*/) {
+  quit_requested = true;
+}
+#endif
 
 static uint32_t random() {
 	return get_rand_32();
@@ -125,6 +139,18 @@ static GameMetadata get_metadata() {
   return ret;
 }
 
+static bool get_system_info(SystemInfo &info) {
+  info = SystemInfo();
+  strncpy(info.firmware_version, get_version_string(), sizeof(info.firmware_version) - 1);
+  pico_get_unique_board_id_string(info.serial, sizeof(info.serial));
+
+#ifdef BUILD_LOADER
+  get_app_flash_usage(info.app_flash_total, info.app_flash_used);
+#endif
+  get_storage_usage(info.storage_total, info.storage_free);
+  return true;
+}
+
 static uint8_t *get_screen_data() {
   return screen.data;
 }
@@ -141,7 +167,11 @@ static const blit::APIConst blit_api_const {
 
   ::now,
   ::random,
+#ifdef BUILD_LOADER
+  ::exit_game,
+#else
   nullptr, // exit
+#endif
   ::debug,
 
   ::open_file,
@@ -200,6 +230,8 @@ static const blit::APIConst blit_api_const {
   ::is_usb_connected,
   ::get_system_settings,
   ::set_system_settings,
+
+  ::get_system_info,
 };
 
 [[gnu::section(".bss.api_data")]]
@@ -222,6 +254,12 @@ void disable_user_code() {
 }
 
 void quit_to_launcher() {
+  // let the game save before it's gone
+  auto on_quit = api_data.on_quit;
+  api_data.on_quit = nullptr;
+  if(on_quit)
+    on_quit();
+
   system_menu_reset();
 
   close_open_files();
@@ -231,12 +269,40 @@ void quit_to_launcher() {
 }
 
 [[maybe_unused]]
+static int64_t quit_timeout_callback(alarm_id_t id, void *user_data) {
+  quit_timeout_alarm_id = 0;
+
+  // the game hasn't returned to the main loop, quit without saving
+  if(quit_requested) {
+    quit_requested = false;
+    api_data.on_quit = nullptr;
+    quit_to_launcher();
+  }
+
+  return 0;
+}
+
+[[maybe_unused]]
 static int64_t home_hold_callback(alarm_id_t id, void *user_data) {
   home_hold_alarm_id = 0;
 
-  quit_to_launcher();
+  quit_requested = true;
+  quit_timeout_alarm_id = add_alarm_in_ms(2000, quit_timeout_callback, nullptr, false);
 
   return 0;
+}
+
+static void handle_quit_request() {
+  if(!quit_requested)
+    return;
+
+  // too late if the timeout already quit
+  if(quit_timeout_alarm_id && !cancel_alarm(quit_timeout_alarm_id))
+    return;
+
+  quit_timeout_alarm_id = 0;
+  quit_requested = false;
+  quit_to_launcher();
 }
 
 static void check_home_button() {
@@ -365,14 +431,20 @@ int main() {
     update_display(now);
 
     update_input();
+    update_screen_sleep(now);
     check_home_button();
 
     int ms_to_next_update = do_tick(::now());
+    handle_quit_request();
 
     update_led();
     update_power(now);
     update_usb();
     update_fs();
+#if defined(AUTO_INSTALL) && defined(BUILD_LOADER)
+    // install .blit files copied onto the drive
+    update_installer();
+#endif
 
     // store settings changed through the API or the system menu
     if(!system_menu_is_open())

@@ -12,6 +12,7 @@ namespace blit {
   void (*init)()                                    = nullptr;
   void (*update)(uint32_t time)                     = nullptr;
   void (*render)(uint32_t time)                     = nullptr;
+  void (*on_quit)()                                 = nullptr;
 
   void set_screen_mode(ScreenMode new_mode, Size bounds) {
     if(new_mode == ScreenMode::hires_palette)
@@ -148,6 +149,14 @@ namespace blit {
 
   const char *get_launch_path() {
     return api.get_launch_path();
+  }
+
+  bool quit_to_home() {
+    if(!api.exit)
+      return false;
+
+    api.exit(false);
+    return true;
   }
 
 }

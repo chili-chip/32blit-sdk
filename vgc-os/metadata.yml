@@ -1,0 +1,10 @@
+title: ChiliChip OS
+description: Home screen for ChiliChip consoles. Pick a game, change settings.
+author: chilichip
+splash:
+  file: assets/splash.png
+icon:
+  file: assets/icon.png
+version: v1.0.0
+url: https://github.com/chili-chip/32blit-sdk
+category: launcher

@@ -27,6 +27,7 @@ elseif(32BLIT_PICO)
 endif()
 
 add_subdirectory(launcher)
+add_subdirectory(vgc-os)
 
 # if the examples are there, build them too
 if(EXISTS ${CMAKE_CURRENT_LIST_DIR}/examples/CMakeLists.txt)

@@ -1,0 +1,9 @@
+title: "Audio"
+description: "Play notes with the synth channels."
+author: ChiliChip
+version: v1.0.0
+category: demo
+icon:
+  file: ../shared/icon.png
+splash:
+  file: cover.png

@@ -1,0 +1,3 @@
+assets.cpp:
+  ../shared/sprites.png:
+    name: asset_sprites

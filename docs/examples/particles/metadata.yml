@@ -1,0 +1,9 @@
+title: "Particles"
+description: "A particle fountain with ParticleGenerator."
+author: ChiliChip
+version: v1.0.0
+category: demo
+icon:
+  file: ../shared/icon.png
+splash:
+  file: cover.png

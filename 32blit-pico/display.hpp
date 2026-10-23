@@ -37,6 +37,10 @@ void ssd1351_set_master_contrast(uint8_t level);
 /// driver supports it.
 void set_display_brightness(uint8_t level);
 
+/// Turn the panel off (screen sleep) or back on. Does nothing unless the
+/// display driver supports it.
+void set_display_power(bool on);
+
 blit::SurfaceInfo &set_screen_mode(blit::ScreenMode mode);
 bool set_screen_mode_format(blit::ScreenMode new_mode, blit::SurfaceTemplate &new_surf_template);
 

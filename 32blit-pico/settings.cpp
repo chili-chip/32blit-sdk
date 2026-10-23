@@ -4,6 +4,7 @@
 
 #include "settings.hpp"
 #include "display.hpp"
+#include "screen_sleep.hpp"
 
 #include "audio/audio.hpp"
 
@@ -51,7 +52,7 @@ const blit::SystemSettings &get_current_settings() {
 void apply_settings(const blit::SystemSettings &settings) {
   current = clamp(settings);
 
-  set_display_brightness(current.brightness);
+  apply_screen_brightness();
   unmute();
 }
 

@@ -12,6 +12,11 @@
 #define BATTERY_DIVIDER 1.0f
 #endif
 
+// drop between the battery and the divider (e.g. a diode in front of VSYS)
+#ifndef BATTERY_OFFSET_MV
+#define BATTERY_OFFSET_MV 0
+#endif
+
 static const uint32_t sample_interval_ms = 250;
 
 static uint32_t last_sample_time = 0;
@@ -35,7 +40,7 @@ static uint32_t read_battery_mv() {
     sum += adc_read();
 
   // 12 bit ADC, 3.3V reference
-  return uint32_t(float(sum) / 8.0f * 3300.0f / 4095.0f * BATTERY_DIVIDER);
+  return uint32_t(float(sum) / 8.0f * 3300.0f / 4095.0f * BATTERY_DIVIDER) + BATTERY_OFFSET_MV;
 }
 #endif
 

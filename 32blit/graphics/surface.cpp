@@ -578,12 +578,23 @@ namespace blit {
   }
 
   /**
-   * TODO: Document this function
+   * Blend a region of another surface into this surface using a custom per-row callback.
    *
-   * \param src
-   * \param r
-   * \param p
-   * \param f
+   * The destination rectangle (`p` with the size of `r`) is clipped to this surface's `clip`
+   * rectangle and the source rectangle is offset to match. `f` is then called once per clipped
+   * row with raw pointers to the start of that row in the source and destination, and the
+   * number of pixels in the row. The callback does all of the pixel work; `alpha`, `mask`,
+   * `pen` and the surface blend functions are not used.
+   *
+   * The source rectangle is also clipped against `src`'s bounds. Rows are advanced by each
+   * surface's `row_stride`, so any pixel format works; the callback receives raw bytes and must
+   * handle the formats of both surfaces itself (`c` is in pixels, not bytes).
+   *
+   * \param src Source surface to read from.
+   * \param r Source rectangle, in `src` pixel coordinates.
+   * \param p Top left destination position, in this surface's pixel coordinates.
+   * \param f Callback `f(psrc, pdest, c)`, called once per row: `psrc` and `pdest` point at the
+   *          first pixel of the row and `c` is the row width in pixels.
    */
   void Surface::custom_blend(Surface *src, Rect r, Point p, std::function<void(uint8_t *psrc, uint8_t *pdest, int16_t c)> f) {
     Rect dr = clip.intersection(Rect(p.x, p.y, r.w, r.h));  // clipped destination rect
@@ -592,28 +603,45 @@ namespace blit {
       return; // after clipping there is nothing to draw
 
     // offset source rect to accommodate for clipped destination rect
-    uint8_t l = dr.x - p.x; // top left corner
-    uint8_t t = dr.y - p.y;
-    r.x += l; r.w -= l; r.y += t; r.h -= t;
+    int32_t l = dr.x - p.x; // top left corner
+    int32_t t = dr.y - p.y;
+    r.x += l; r.y += t;
     r.w = dr.w; // clamp width/height
     r.h = dr.h;
 
-    uint8_t *psrc = src->ptr(r.x, r.y);
+    // clip the source rect against the source surface and shrink the destination to match
+    Rect sr = r.intersection(Rect(0, 0, src->bounds.w, src->bounds.h));
+    if (sr.empty())
+      return;
+
+    dr.x += sr.x - r.x; dr.y += sr.y - r.y;
+    dr.w = sr.w; dr.h = sr.h;
+
+    uint8_t *psrc = src->ptr(sr.x, sr.y);
     uint8_t *pdest = ptr(dr.x, dr.y);
 
     for (int32_t y = 0; y < dr.h; y++) {
       f(psrc, pdest, dr.w);
 
-      psrc += src->bounds.w;
-      pdest += bounds.w;
+      psrc += src->row_stride;
+      pdest += row_stride;
     }
   }
 
   /**
-   * TODO: Document this function
+   * Modify a region of this surface in place using a custom per-row callback.
    *
-   * \param r
-   * \param f
+   * `r` is clipped to the surface's `clip` rectangle, then `f` is called once per clipped
+   * row with a raw pointer to the start of that row and the number of pixels in the row.
+   * The callback does all of the pixel work; `alpha`, `mask`, `pen` and the surface blend
+   * functions are not used.
+   *
+   * Rows are advanced by `row_stride`, so any pixel format works; the callback receives raw
+   * bytes and must handle the surface's format itself (`c` is in pixels, not bytes).
+   *
+   * \param r Rectangle to modify, in pixel coordinates.
+   * \param f Callback `f(p, c)`, called once per row: `p` points at the first pixel of the row
+   *          and `c` is the row width in pixels.
    */
   void Surface::custom_modify(Rect r, std::function<void(uint8_t *p, int16_t c)> f) {
     Rect dr = clip.intersection(r);  // clipped destination rect
@@ -626,14 +654,37 @@ namespace blit {
     for (int32_t y = 0; y < dr.h; y++) {
       f(p, dr.w);
 
-      p += bounds.w;
+      p += row_stride;
     }
   }
 
   /**
-   * TODO: Document this function
+   * Decode a packed (`SPRITEPK`), RLE (`SPRITERL`) or raw (`SPRITERW`) image into a new `Surface`.
    *
-   * \param image
+   * Used by @ref load and @ref load_read_only, which check the image type and format first.
+   * The `packed_image` header is read from the start of `file`, followed by `palette_entry_count`
+   * RGBA palette entries (256 if the count is 0 and the format is `PixelFormat::P`) and the pixel data.
+   *
+   * - Raw images are copied as-is. A `PixelFormat::P` raw image keeps its palette.
+   * - Packed and RLE `PixelFormat::P` images are unpacked to one palette index per byte and keep their palette.
+   * - Packed images in any other format are expanded to `Pen` (RGBA) values through the palette,
+   *   and the palette is freed afterwards. RLE is only decoded for `PixelFormat::P`; an RLE image
+   *   in any other format is decoded as if it were packed.
+   *
+   * Ownership: the returned `Surface` is allocated with `new` and owned by the caller. If `data` is
+   * `nullptr`, the pixel buffer is allocated with `new[]` and is also owned by the caller, as is
+   * `palette` when it is kept. `Surface` has no destructor, so none of these are freed automatically.
+   *
+   * \param file Open file containing the image. Its memory pointer (`File::get_ptr`) is used directly
+   *             when available, to avoid an extra copy of the compressed data.
+   * \param data Optional caller-provided buffer for the pixels, or `nullptr` to allocate one.
+   * \param data_size Size of `data` in bytes. Must be at least `width * height * pixel stride`
+   *                  when `data` is not `nullptr`.
+   * \param readonly For raw images, point the surface's `data` at the image in `file` instead of
+   *                 copying it. Requires `file` to be memory-backed (`File::get_ptr` not `nullptr`);
+   *                 any `data` buffer passed in is then ignored. Has no effect on packed or RLE images.
+   *
+   * \return New `Surface` containing the image, or `nullptr` if `data` is too small.
    */
   Surface *Surface::load_from_packed(File &file, uint8_t *data, size_t data_size, bool readonly) {
     packed_image image;
@@ -873,7 +924,14 @@ namespace blit {
   }
 
   /**
-   * TODO: Document this function
+   * Draw the 32blit logo watermark in the bottom right corner of the surface.
+   *
+   * The 13x13 logo is drawn with the surface's pen blend function (so `alpha` and `mask` apply),
+   * inset from the right and bottom edges by two logo pixels. Each logo pixel is drawn as a
+   * `scale` x `scale` block, where `scale` is `bounds.w / 160` (integer division) but at least 1:
+   * 1x up to 319 pixels wide, 2x on a 320 to 479 pixel wide surface, and so on.
+   *
+   * Nothing is drawn if the surface is smaller than the 15 * `scale` pixel logo area.
    */
   void Surface::watermark() {
     static uint8_t logo[] = {
@@ -894,14 +952,20 @@ namespace blit {
 
     static Pen pens[] = { Pen(39, 39, 56), Pen(255, 255, 255), Pen(0, 255, 0) };
 
-    uint8_t scale = bounds.w / 160;
+    // at least 1, so narrow surfaces don't call the blend functions with a zero count
+    int32_t scale = std::max(int32_t(1), int32_t(bounds.w / 160));
+
+    // the logo is drawn 15 * scale pixels in from the bottom right corner
+    if (bounds.w < 15 * scale || bounds.h < 15 * scale)
+      return;
+
     for (uint8_t y = 0; y < 13; y++) {
       for (uint8_t x = 0; x < 13; x++) {
         Pen &p = pens[logo[x + y * 13]];
         int o = offset(bounds.w - (15 * scale) + (x * scale), bounds.h - (15 * scale) + (y * scale));
-        pbf(&p, this, o, scale);
-        if (scale == 2) {
-          pbf(&p, this, o + bounds.w, scale);
+        // fill every row of the scale x scale block
+        for (int32_t row = 0; row < scale; row++) {
+          pbf(&p, this, o + row * bounds.w, scale);
         }
       }
     }

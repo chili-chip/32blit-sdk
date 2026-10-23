@@ -11,12 +11,14 @@ on:
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
   BUILD_TYPE: Release
-  EM_VERSION: 2.0.18
+  EM_VERSION: 6.0.12
   EM_CACHE_FOLDER: 'emsdk-cache'
 
 jobs:
   build:
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
 
     steps:
     - uses: actions/checkout@v7
@@ -27,11 +29,14 @@ jobs:
         repository: 32blit/32blit-examples
         path: 32blit-examples
 
-    - name: Install deps
+    - name: Install Python Dependencies
+      shell: bash
       run: |
-        sudo apt update && sudo apt install doxygen graphviz pipx
-        pipx install 32blit
-        pipx inject --force 32blit "bitstring<5"
+        python3 -m venv .venv
+        source .venv/bin/activate
+        python -m pip install -r tools/requirements.txt -r docs/requirements.txt
+        echo "$VIRTUAL_ENV/bin" >> $GITHUB_PATH
+        echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> $GITHUB_ENV
 
     - name: Setup cache
       id: cache-system-libraries
@@ -66,13 +71,13 @@ jobs:
       working-directory: ${{runner.workspace}}/build
       shell: bash
       run: |
-        embuilder.py build sdl2 sdl2-image-jpg sdl2-net
+        embuilder build sdl2 sdl2_image-jpg sdl2_net
         cmake --build . --config $BUILD_TYPE -j 2
 
     - name: Prepare Site
       run: |
-        mkdir -p site/examples
-        cp ../build/*/*.{js,wasm} site/examples
+        mkdir -p site/web-examples
+        cp ../build/*/*.{js,wasm} site/web-examples
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v7
@@ -80,18 +85,20 @@ jobs:
         name: ${{github.event.repository.name}}-${{github.sha}}-web
         path: site
 
-    # build the docs
+    # build the docs site (MkDocs, from docs/) next to the web examples
     - name: Build Docs
       if: github.ref == 'refs/heads/master' # github.event_name == 'release'
       run: |
-        cd 32blit && doxygen doxygen.conf && cd ..
-        cp -r 32blit/documentation/html/* site
+        mkdocs build --strict
+        cp -r build-docs/* site
 
-    - name: Deploy to GitHub Pages
-      if: github.ref == 'refs/heads/master' # github.event_name == 'release'
-      uses: crazy-max/ghaction-github-pages@v5
+    # Publish the site (docs + web examples) to the chilichip-sdk Cloudflare
+    # Pages project. The project and its custom domain are set up in Cloudflare,
+    # not here.
+    - name: Deploy to Cloudflare Pages
+      if: github.ref == 'refs/heads/master'
+      uses: cloudflare/wrangler-action@v4
       with:
-        target_branch: gh-pages
-        build_dir: site
-      env:
-        GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+        apiToken: ${{secrets.CLOUDFLARE_API_TOKEN}}
+        accountId: ${{secrets.CLOUDFLARE_ACCOUNT_ID}}
+        command: pages deploy site --project-name=chilichip-sdk --branch=master

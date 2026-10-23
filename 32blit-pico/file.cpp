@@ -13,6 +13,11 @@
 #include "file.hpp"
 #include "storage.hpp"
 #include "executable.hpp"
+#include "config.h"
+
+#if defined(AUTO_INSTALL) && defined(BUILD_LOADER)
+#include "installer.hpp"
+#endif
 
 static FATFS fs;
 static bool initialised = false;
@@ -83,13 +88,26 @@ void init_fs() {
   }
 #endif
 
-  if(res != FR_OK)
+  if(res != FR_OK) {
     printf("Failed to mount filesystem! (%i)\n", res);
+    return;
+  }
+
+#ifdef STORAGE_VOLUME_LABEL
+  // name the drive, also relabels drives formatted before the name was set
+  char label[12];
+  if(f_getlabel("", label, nullptr) == FR_OK && strcmp(label, STORAGE_VOLUME_LABEL) != 0)
+    f_setlabel(STORAGE_VOLUME_LABEL);
+#endif
 }
 
 void storage_host_written() {
   host_wrote = true;
   host_write_time = get_absolute_time();
+
+#if defined(AUTO_INSTALL) && defined(BUILD_LOADER)
+  installer_request_scan();
+#endif
 }
 
 void update_fs() {
@@ -110,6 +128,19 @@ void update_fs() {
 bool is_fs_available() {
   // report a change while the host is writing so a launcher re-scans after the remount
   return !host_wrote && is_storage_available();
+}
+
+bool get_storage_usage(uint32_t &total, uint32_t &free) {
+  DWORD free_clusters;
+  FATFS *fs_ptr;
+
+  if(f_getfree("", &free_clusters, &fs_ptr) != FR_OK)
+    return false;
+
+  uint32_t cluster_size = fs_ptr->csize * FF_MIN_SS;
+  total = (fs_ptr->n_fatent - 2) * cluster_size;
+  free = free_clusters * cluster_size;
+  return true;
 }
 
 static char save_path[32]; // max game title length is 24 + ".blit/" + "/"
