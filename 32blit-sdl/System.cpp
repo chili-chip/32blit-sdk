@@ -234,6 +234,12 @@ static const blit::APIConst blit_api_const {
 
   nullptr, // get_screen_data
   nullptr, // set_framebuffer
+
+  nullptr, // get_battery_level
+  nullptr, // get_battery_voltage
+  nullptr, // is_usb_connected
+  nullptr, // get_system_settings
+  nullptr, // set_system_settings
 };
 
 static blit::APIData blit_api_data;
