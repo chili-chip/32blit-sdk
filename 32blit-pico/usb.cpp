@@ -12,7 +12,9 @@
 
 #include "fatfs_blit_api.hpp"
 
+#include "engine/api_private.hpp"
 #include "engine/engine.hpp"
+#include "engine/version.hpp"
 #include "executable.hpp"
 
 #define MAX_FILENAME 256+1
@@ -391,6 +393,23 @@ public:
   CDCParseBuffer &buf;
 };
 
+// replies "32BLVERS", the loader version (NUL-terminated), then the API major and minor (uint16 each)
+class CDCVersionCommand final : public CDCCommand {
+  void init() override {
+  }
+
+  Status update() override {
+    auto version = blit::get_version_string();
+    uint16_t api_version[]{blit::api_version_major, blit::api_version_minor};
+
+    usb_cdc_write((const uint8_t *)"32BLVERS", 8);
+    usb_cdc_write((const uint8_t *)version, strlen(version) + 1);
+    usb_cdc_write((const uint8_t *)api_version, sizeof(api_version));
+    usb_cdc_flush_write();
+
+    return Status::Done;
+  }
+};
 
 static CDCHandshakeCommand handshake_command;
 static CDCUserCommand user_command;
@@ -403,6 +422,7 @@ static CDCSaveCommand save_command(parse_buffer);
 static CDCListCommand list_command;
 static CDCLaunchCommand launch_command(parse_buffer);
 static CDCEraseCommand erase_command(parse_buffer);
+static CDCVersionCommand version_command;
 #endif
 
 const std::tuple<uint32_t, CDCCommand *> cdc_commands[]{
@@ -415,6 +435,7 @@ const std::tuple<uint32_t, CDCCommand *> cdc_commands[]{
   {to_cmd_id("__LS"), &list_command},
   {to_cmd_id("LNCH"), &launch_command},
   {to_cmd_id("ERSE"), &erase_command},
+  {to_cmd_id("VERS"), &version_command},
 #endif
 };
 
