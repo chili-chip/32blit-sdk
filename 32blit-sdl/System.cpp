@@ -240,6 +240,8 @@ static const blit::APIConst blit_api_const {
   nullptr, // is_usb_connected
   nullptr, // get_system_settings
   nullptr, // set_system_settings
+
+  nullptr, // get_system_info
 };
 
 static blit::APIData blit_api_data;
