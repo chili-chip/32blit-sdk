@@ -17,6 +17,10 @@
 #include "file.hpp"
 #include "overlay.hpp"
 
+#ifdef PICO_RP2350
+#include "flash_translation.hpp"
+#endif
+
 #include "engine/engine.hpp"
 #include "engine/file.hpp"
 
@@ -80,6 +84,9 @@ static uint32_t calc_num_blocks(uint32_t size) {
 }
 
 #ifdef BUILD_LOADER
+static bool is_api_compatible(const BlitGameHeader &header) {
+  return header.api_version_major == blit::api_version_major && header.api_version_minor <= blit::api_version_minor;
+}
 
 #ifdef PICO_RP2350
 static uint32_t find_flash_offset(uint32_t requested_size) {
@@ -355,8 +362,8 @@ bool launch_file(const char *path) {
   }
 
   auto header = (BlitGameHeader *)(FLASH_BASE + flash_offset);
-  // check header magic + device
-  if(header->magic != blit_game_magic || header->device_id != DEVICE_ID)
+  // check header magic + device + API version (init would fail after clobbering the running blit's RAM)
+  if(header->magic != blit_game_magic || header->device_id != DEVICE_ID || !is_api_compatible(*header))
     return false;
 
   if(!header->init || !header->render || !header->tick)
@@ -391,7 +398,7 @@ blit::CanLaunchResult can_launch(const char *path) {
 
     auto bytes_read = read_file(file, 0, sizeof(header), (char *)&header);
 
-    if(bytes_read == sizeof(header) && header.magic == blit_game_magic && header.device_id == DEVICE_ID) {
+    if(bytes_read == sizeof(header) && header.magic == blit_game_magic && header.device_id == DEVICE_ID && is_api_compatible(header)) {
       close_file(file);
       return blit::CanLaunchResult::Success;
     }
@@ -426,6 +433,23 @@ void launch_pre_init() {
     blit::api.channels[i] = blit::AudioChannel();
 }
 
+#ifdef PICO_RP2350
+static uint32_t translation_size(uint32_t atrans) {
+  return ((atrans & QMI_ATRANS1_SIZE_BITS) >> QMI_ATRANS1_SIZE_LSB) << 12;
+}
+
+static void set_translation(uint32_t atrans) {
+  uint32_t old_atrans = qmi_hw->atrans[1];
+  if(atrans == old_atrans)
+    return;
+
+  qmi_hw->atrans[1] = atrans;
+
+  // drop anything cached from the old mapping
+  xip_cache_invalidate_range(flash_translation_max_size, std::max(translation_size(old_atrans), translation_size(atrans)));
+}
+#endif
+
 void delayed_launch() {
   if(!requested_launch_offset)
     return;
@@ -433,18 +457,20 @@ void delayed_launch() {
   auto header = (BlitGameHeader *)(FLASH_BASE + requested_launch_offset);
 
 #ifdef PICO_RP2350
+  // save in case launch fails, the previous blit may also be translated
+  uint32_t last_atrans = qmi_hw->atrans[1];
+
+  // map the blit's link address onto where it's installed,
+  // or back to 1:1 so a previous blit's mapping doesn't hide this one
+  uint32_t base = flash_translation_max_size, size = flash_translation_max_size;
+
   uint32_t header_offset = *(uint32_t *)(FLASH_BASE + requested_launch_offset + sizeof(BlitGameHeader));
   if(header_offset != requested_launch_offset) {
-    // setup translation
-    uint32_t size = 4 * 1024 * 1024; // TODO: use (rounded) blit size
-    qmi_hw->atrans[1] = (size >> 12) << QMI_ATRANS1_SIZE_LSB
-                      | (requested_launch_offset >> 12) << QMI_ATRANS1_BASE_LSB;
-
-    // invalidate cache
-    xip_cache_invalidate_range(4 * 1024 * 1024, size);
-
-    // FIXME: handle previous blit also using translation on failure
+    base = requested_launch_offset;
+    size = flash_translation_size(get_installed_file_size(requested_launch_offset));
   }
+
+  set_translation(size >> 12 << QMI_ATRANS1_SIZE_LSB | base >> 12 << QMI_ATRANS1_BASE_LSB);
 #endif
 
   // save in case launch fails
@@ -458,6 +484,9 @@ void delayed_launch() {
   if(!header->init(0)) {
     blit::debugf("failed to init game!\n");
     current_game_offset = last_game_offset;
+#ifdef PICO_RP2350
+    set_translation(last_atrans);
+#endif
     return;
   }
 
@@ -657,7 +686,7 @@ InstallResult install_blit_file(const char *path, std::function<void(uint32_t do
   if(header.magic != blit_game_magic || header.device_id != DEVICE_ID)
     return fail(InstallResult::NotAGame);
 
-  if(header.api_version_major != blit::api_version_major || header.api_version_minor > blit::api_version_minor)
+  if(!is_api_compatible(header))
     return fail(InstallResult::NeedsUpdate);
 
   if(header.end < sizeof(header_buf) || header.end > len)
