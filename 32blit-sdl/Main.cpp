@@ -36,10 +36,10 @@ Audio *blit_audio;
 #ifdef __EMSCRIPTEN__
 extern "C" {
 EMSCRIPTEN_KEEPALIVE int blit_set_audio_muted(int muted) {
-	if (blit_audio == nullptr || !blit_audio->set_muted(muted != 0)) {
+	if (blit_audio == nullptr) {
 		return 0;
 	}
-
+	blit_audio->set_muted(muted != 0);
 	return 1;
 }
 }
