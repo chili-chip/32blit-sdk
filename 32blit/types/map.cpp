@@ -29,6 +29,13 @@ namespace blit {
   }
 
   void MapLayer::mipmap_texture_span(Surface *dest, Point s, uint16_t c, Surface *sprites, Vec2 swc, Vec2 ewc) {
+    // without generated mipmaps, draw from the full-size sheet
+    if (sprites->mipmaps.empty()) {
+      dest->alpha = 255;
+      texture_span(dest, s, c, sprites, swc, ewc, 0);
+      return;
+    }
+
     // calculate the mipmap index to use for drawing
     float span_length = (ewc - swc).length();
     float mipmap = ((span_length / float(c)) / 2.0f);
@@ -102,7 +109,8 @@ namespace blit {
 
   uint8_t MapLayer::transform_at(Point p) {
     int32_t ti = map->tile_index(p);
-    return ti == -1 ? 0 : transforms[ti];
+    // add_layer doesn't fill transforms, so a missing entry means no transform
+    return ti == -1 || size_t(ti) >= transforms.size() ? 0 : transforms[ti];
   }
 
   uint8_t Map::get_flags(Point p) {

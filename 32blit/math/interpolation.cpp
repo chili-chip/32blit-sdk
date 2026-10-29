@@ -7,22 +7,20 @@ namespace blit {
    * Map `value` from the range [`start`, `end`] onto the range [`min`, `max`].
    *
    * `value` is first clamped to [`start`, `end`], so the result never leaves [`min`, `max`]
-   * (assuming `start` < `end`).
-   *
-   * Note: the scale factor is computed as `value / (end - start)`, without subtracting `start`
-   * from `value`. The mapping is therefore only a true linear remap when `start` is `0`.
-   * Passing `start == end` divides by zero.
+   * (assuming `start` < `end`). When `start == end` the result is `min`.
    *
    * @param value Input value, in the same units as `start` and `end`.
-   * @param start Lower bound of the input range.
-   * @param end Upper bound of the input range.
-   * @param min Output value when `value` is `0` (and `start` is `0`).
+   * @param start Lower bound of the input range; maps to `min`.
+   * @param end Upper bound of the input range; maps to `max`.
+   * @param min Output value when `value` is `start`.
    * @param max Output value when `value` is `end`.
-   * @return `(clamp(value, start, end) / (end - start)) * (max - min) + min`.
+   * @return `((clamp(value, start, end) - start) / (end - start)) * (max - min) + min`.
    */
   float lerp(float value, float start, float end, float min, float max) {
+    if (end == start)
+      return min;
     value = value < start ? start : (value > end ? end : value);
-    return ((value / (end - start)) * (max - min)) + min;
+    return (((value - start) / (end - start)) * (max - min)) + min;
   }
 
   /**
@@ -45,20 +43,20 @@ namespace blit {
    * Map `value` from the range [`start`, `end`] onto the line between the vectors `min` and `max`.
    *
    * Vector version of lerp(float, float, float, float, float), with the same behaviour:
-   * `value` is clamped to [`start`, `end`] and the scale factor is `value / (end - start)`,
-   * without subtracting `start`, so the mapping is only a true linear remap when `start` is `0`.
-   * Passing `start == end` divides by zero.
+   * `value` is clamped to [`start`, `end`], and `start == end` gives `min`.
    *
    * @param value Input value, in the same units as `start` and `end`.
-   * @param start Lower bound of the input range.
-   * @param end Upper bound of the input range.
-   * @param min Result when `value` is `0` (and `start` is `0`).
+   * @param start Lower bound of the input range; maps to `min`.
+   * @param end Upper bound of the input range; maps to `max`.
+   * @param min Result when `value` is `start`.
    * @param max Result when `value` is `end`.
-   * @return `(max - min) * (clamp(value, start, end) / (end - start)) + min`.
+   * @return `(max - min) * ((clamp(value, start, end) - start) / (end - start)) + min`.
    */
   Vec2 lerp(float value, float start, float end, Vec2 min, Vec2 max) {
+    if (end == start)
+      return min;
     value = value < start ? start : (value > end ? end : value);
-    return ((max - min) * (value / (end - start))) + min;
+    return ((max - min) * ((value - start) / (end - start))) + min;
   }
 
   /**

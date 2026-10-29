@@ -15,8 +15,6 @@
 namespace blit {
  
 
-  // TODO: Provide method to return scale for world coordinate
-
   /**
    * Convert a mode7 world-space coordinate to a screen coordinate.
    *
@@ -24,8 +22,8 @@ namespace blit {
    * depth along the camera's forward direction gives the screen row, and its sideways offset
    * relative to the width of the field of view at that depth gives the screen column.
    *
-   * The returned x is `0` at the left edge of the field of view and `viewport.w` at the right
-   * edge; `viewport.x` is not added. The returned y is `viewport.y + (far - near) / (d - near)`,
+   * The returned x is `viewport.x` at the left edge of the field of view and
+   * `viewport.x + viewport.w` at the right edge. The returned y is `viewport.y + (far - near) / (d - near)`,
    * where `d` is the distance along the edge of the field of view at the point's depth.
    *
    * The result is only meaningful for points in front of the camera. A point at `pos`
@@ -64,7 +62,7 @@ namespace blit {
     float r = so / (hsl * 2.0f);
 
     Vec2 s(
-      r * viewport.w,
+      (r * viewport.w) + viewport.x,
       ((far - near) / (pd - near)) + viewport.y
     );
       
@@ -110,21 +108,14 @@ namespace blit {
    * left and right edges of the row, and `layer->mipmap_texture_span` draws the span between
    * them. Rows are drawn into `dest` directly; `viewport` is not clipped against `dest->clip`.
    *
-   * The textures come from `sprites->mipmaps`, which must not be empty (see
-   * @ref Surface::generate_mipmaps). The mipmap level for each row is picked from how many
-   * world pixels it covers per screen pixel, and the next level is blended over it using
-   * `dest->alpha`. `dest->alpha` is not restored: it is left at the last row's blend amount
-   * (or 255 when there is only one mipmap level).
-   *
-   * The horizontal mapping is only correct when `viewport.x` is `0`, because @ref screen_to_world
-   * uses the 5-argument `lerp`, which does not subtract its `start` value.
-   *
-   * After drawing, this also sets `dest->pen` to magenta and draws a single debug pixel at the
-   * screen position of world coordinate (400, 400).
+   * The textures come from `sprites->mipmaps` (see @ref Surface::generate_mipmaps); without
+   * mipmaps, `sprites` itself is used at full size. The mipmap level for each row is picked from
+   * how many world pixels it covers per screen pixel, and the next level is blended over it
+   * using `dest->alpha`. `dest->alpha` is restored before returning.
    *
    * \param[in] dest Surface to draw to.
    * \param[in] sprites Sprite sheet with generated mipmaps, used for the tile textures.
-   * \param[in] layer Map layer to draw. Its `transforms` must have an entry for every tile.
+   * \param[in] layer Map layer to draw. Tiles with no entry in `transforms` are drawn untransformed.
    * \param[in] fov Camera field-of-view, in radians.
    * \param[in] angle Camera rotation in world space, in radians. At `0` the camera faces -y.
    * \param[in] pos Camera position in world space.
@@ -133,6 +124,8 @@ namespace blit {
    * \param[in] viewport Screen rectangle to draw in. The top row is at infinite distance.
    */
   void mode7(Surface *dest, Surface *sprites, MapLayer *layer, float fov, float angle, Vec2 pos, float near, float far, Rect viewport) {
+    uint8_t alpha = dest->alpha;
+
     for (int y = viewport.y; y < viewport.y + viewport.h; y++) {
       Vec2 swc = screen_to_world(Vec2(viewport.x, y), fov, angle, pos, near, far, viewport);
       Vec2 ewc = screen_to_world(Vec2(viewport.x + viewport.w, y), fov, angle, pos, near, far, viewport);
@@ -146,9 +139,7 @@ namespace blit {
         ewc);
     }
 
-    Vec2 s = world_to_screen(Vec2(400, 400), fov, angle, pos, near, far, viewport);
-    dest->pen = Pen(255, 0, 255);
-    dest->pixel(s);
+    dest->alpha = alpha;
   }
   
 }

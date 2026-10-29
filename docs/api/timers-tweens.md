@@ -190,6 +190,6 @@ The three-argument forms behave differently for floats and vectors:
 :   A normal lerp: the point `t` of the way from `start` to `end` (`0.0` gives `start`).
 
 `lerp(value, start, end, min, max)`
-:   Maps `value` from the range `start`..`end` onto `min`..`max`, clamping it to the range first. It divides `value` by `end - start` without subtracting `start`, so it's only a true remap when `start` is `0`.
+:   Maps `value` from the range `start`..`end` onto `min`..`max`, clamping it to the range first. If `start == end` it returns `min`.
 
 For an ordinary float lerp, write it out: `a + (b - a) * t`.
