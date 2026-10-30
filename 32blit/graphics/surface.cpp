@@ -667,9 +667,8 @@ namespace blit {
    *
    * - Raw images are copied as-is. A `PixelFormat::P` raw image keeps its palette.
    * - Packed and RLE `PixelFormat::P` images are unpacked to one palette index per byte and keep their palette.
-   * - Packed images in any other format are expanded to `Pen` (RGBA) values through the palette,
-   *   and the palette is freed afterwards. RLE is only decoded for `PixelFormat::P`; an RLE image
-   *   in any other format is decoded as if it were packed.
+   * - Packed and RLE images in any other format are expanded to `Pen` (RGBA) values through the
+   *   palette, and the palette is freed afterwards.
    *
    * Ownership: the returned `Surface` is allocated with `new` and owned by the caller. If `data` is
    * `nullptr`, the pixel buffer is allocated with `new[]` and is also owned by the caller, as is
@@ -681,8 +680,9 @@ namespace blit {
    * \param data_size Size of `data` in bytes. Must be at least `width * height * pixel stride`
    *                  when `data` is not `nullptr`.
    * \param readonly For raw images, point the surface's `data` at the image in `file` instead of
-   *                 copying it. Requires `file` to be memory-backed (`File::get_ptr` not `nullptr`);
-   *                 any `data` buffer passed in is then ignored. Has no effect on packed or RLE images.
+   *                 copying it, ignoring any `data` buffer passed in. If `file` isn't memory-backed
+   *                 (`File::get_ptr` is `nullptr`) the image is copied instead. Has no effect on
+   *                 packed or RLE images.
    *
    * \return New `Surface` containing the image, or `nullptr` if `data` is too small.
    */
@@ -722,9 +722,10 @@ namespace blit {
     }
 
     if (is_raw) {
-      if(readonly) // just read/copy the data
+      if(readonly && file.get_ptr()) // point straight at the data
         ret->data = (uint8_t *)file.get_ptr() + offset;
       else {
+        // not memory-mapped (or not read-only): copy the data
         if(!ret->data)
           ret->data = new uint8_t[needed_size];
         file.read(offset, image.width * image.height * pixel_format_stride[image.format], (char *)ret->data);
@@ -748,77 +749,62 @@ namespace blit {
 
     end = image_data + image.byte_count - offset;
 
-    if (format == PixelFormat::P) {
-      // load paletted
-      uint8_t *pdest = (uint8_t *)ret->data;
-      auto dest_end = pdest + needed_size;
+    // P keeps the palette indices; other formats get the palette colours
+    bool paletted = format == PixelFormat::P;
+    uint8_t *pdest = (uint8_t *)ret->data;
+    Pen *cdest = (Pen *)ret->data;
+    size_t pixels_left = size_t(image.width) * image.height;
 
-      if(is_rle) {
-        int parse_state = 0;
-        uint8_t count = 0;
+    auto emit = [&](uint8_t index, int count) {
+      for (int c = 0; c < count && pixels_left; c++, pixels_left--) {
+        if (paletted)
+          *pdest++ = index;
+        else
+          *cdest++ = ret->palette[index];
+      }
+    };
 
-        for (auto bytes = image_data; bytes < end; ++bytes) {
-          uint8_t b = *bytes;
+    if(is_rle) {
+      int parse_state = 0;
+      uint8_t count = 0;
 
-          for (auto j = 0; j < 8; j++) {
-            switch (parse_state) {
-              case 0: // flag
-                if(b & (0b10000000 >> j))
-                  parse_state = 1;
-                else
-                  parse_state = 2;
-                break;
-              case 1: // repeat count
-                count <<= 1;
-                count |= ((0b10000000 >> j) & b) ? 1 : 0;
-                if (++bit == 8) {
-                  parse_state = 2;
-                  bit = 0;
-                }
-                break;
+      for (auto bytes = image_data; bytes < end && pixels_left; ++bytes) {
+        uint8_t b = *bytes;
 
-              case 2: // value
-                col <<= 1;
-                col |= ((0b10000000 >> j) & b) ? 1 : 0;
+        for (auto j = 0; j < 8; j++) {
+          switch (parse_state) {
+            case 0: // flag
+              if(b & (0b10000000 >> j))
+                parse_state = 1;
+              else
+                parse_state = 2;
+              break;
+            case 1: // repeat count
+              count <<= 1;
+              count |= ((0b10000000 >> j) & b) ? 1 : 0;
+              if (++bit == 8) {
+                parse_state = 2;
+                bit = 0;
+              }
+              break;
 
-                if (++bit == bit_depth) {
-                  for (int c = 0; c <= count; c++)
-                    *pdest++ = col;
+            case 2: // value
+              col <<= 1;
+              col |= ((0b10000000 >> j) & b) ? 1 : 0;
 
-                  bit = 0; col = 0;
-                  parse_state = 0;
-                  count = 0;
+              if (++bit == bit_depth) {
+                emit(col, count + 1);
 
-                  // done, skip any remaining padding
-                  if(pdest == dest_end)
-                    parse_state = 3;
-                }
-                break;
-            }
-
-          }
-        }
-
-      } else {
-        for (auto bytes = image_data; bytes < end; ++bytes) {
-          uint8_t b = *bytes;
-          for (auto j = 0; j < 8; j++) {
-            col <<= 1;
-            col |= ((0b10000000 >> j) & b) ? 1 : 0;
-
-            bit++;
-            if (bit == bit_depth) {
-              *pdest++ = col;
-              bit = 0; col = 0;
-            }
+                bit = 0; col = 0;
+                parse_state = 0;
+                count = 0;
+              }
+              break;
           }
         }
       }
     } else {
-      // packed RGBA
-      Pen *pdest = (Pen *)ret->data;
-
-      for (auto bytes = image_data; bytes < end; ++bytes) {
+      for (auto bytes = image_data; bytes < end && pixels_left; ++bytes) {
         uint8_t b = *bytes;
         for (auto j = 0; j < 8; j++) {
           col <<= 1;
@@ -826,13 +812,14 @@ namespace blit {
 
           bit++;
           if (bit == bit_depth) {
-            *pdest++ = ret->palette[col];
-
+            emit(col, 1);
             bit = 0; col = 0;
           }
         }
       }
+    }
 
+    if (!paletted) {
       // unpacked, no longer needed
       delete[] ret->palette;
       ret->palette = nullptr;
