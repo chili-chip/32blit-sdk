@@ -5,6 +5,7 @@
 
 #include "hardware/clocks.h"
 #include "hardware/dma.h"
+#include "hardware/gpio.h"
 #include "hardware/pio.h"
 #include "hardware/sync.h"
 
@@ -13,6 +14,15 @@
 #include "i2s.pio.h"
 
 #define audio_pio __CONCAT(pio, AUDIO_I2S_PIO)
+
+// AUDIO_I2S_SWAP_CLOCKS: LRCLK is on AUDIO_I2S_CLOCK_PIN_BASE and BCLK on the pin after it
+#ifdef AUDIO_I2S_SWAP_CLOCKS
+#define i2s_audio_program i2s_swapped_program
+#define i2s_audio_program_get_default_config i2s_swapped_program_get_default_config
+#else
+#define i2s_audio_program i2s_program
+#define i2s_audio_program_get_default_config i2s_program_get_default_config
+#endif
 
 #define AUDIO_SAMPLE_FREQ 44100
 #define AUDIO_BUFFER_SIZE 256
@@ -48,6 +58,17 @@ static void __not_in_flash_func(i2s_irq_handler)() {
 }
 
 void init_audio() {
+  // amp shutdown / enable (MAX98357A SD etc.)
+#ifdef AUDIO_ENABLE_PIN
+  gpio_init(AUDIO_ENABLE_PIN);
+  gpio_set_dir(AUDIO_ENABLE_PIN, GPIO_OUT);
+#ifdef AUDIO_ENABLE_ACTIVE_LOW
+  gpio_put(AUDIO_ENABLE_PIN, 0);
+#else
+  gpio_put(AUDIO_ENABLE_PIN, 1);
+#endif
+#endif
+
   // setup PIO
 
 #if AUDIO_I2S_DATA_PIN >= 32 || AUDIO_I2S_CLOCK_PIN_BASE >= 31
@@ -56,11 +77,11 @@ void init_audio() {
     pio_set_gpio_base(audio_pio, 16);
 #endif
 
-  int pio_offset = pio_add_program(audio_pio, &i2s_program);
+  int pio_offset = pio_add_program(audio_pio, &i2s_audio_program);
 
   int pio_sm = pio_claim_unused_sm(audio_pio, true);
 
-  pio_sm_config cfg = i2s_program_get_default_config(pio_offset);
+  pio_sm_config cfg = i2s_audio_program_get_default_config(pio_offset);
 
   const int bitrate = AUDIO_SAMPLE_FREQ * 16 * 2;
   const int clkdiv = clock_get_hz(clk_sys) / float(bitrate * 2);
@@ -73,8 +94,8 @@ void init_audio() {
 
   // init pins
   pio_gpio_init(audio_pio, AUDIO_I2S_DATA_PIN);
-  pio_gpio_init(audio_pio, AUDIO_I2S_CLOCK_PIN_BASE + 0); // bit clock
-  pio_gpio_init(audio_pio, AUDIO_I2S_CLOCK_PIN_BASE + 1); // left/right clock
+  pio_gpio_init(audio_pio, AUDIO_I2S_CLOCK_PIN_BASE + 0); // bit clock (left/right if swapped)
+  pio_gpio_init(audio_pio, AUDIO_I2S_CLOCK_PIN_BASE + 1); // left/right clock (bit if swapped)
 
   pio_sm_set_consecutive_pindirs(audio_pio, pio_sm, AUDIO_I2S_DATA_PIN, 1, true);
   pio_sm_set_consecutive_pindirs(audio_pio, pio_sm, AUDIO_I2S_CLOCK_PIN_BASE, 2, true);
@@ -106,7 +127,8 @@ void init_audio() {
   pio_sm_set_enabled(audio_pio, pio_sm, true);
 }
 
-void update_audio(uint32_t time) {
+// in RAM: on core 1 this runs in a tight loop and must not contend for XIP
+void __not_in_flash_func(update_audio)(uint32_t time) {
   if(!queue_full) {
     auto buffer = audio_buffer + cur_write_buffer_index * AUDIO_BUFFER_SIZE;
 

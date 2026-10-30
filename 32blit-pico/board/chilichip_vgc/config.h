@@ -19,9 +19,16 @@
 #define DISPLAY_WIDTH 128
 #define DISPLAY_HEIGHT 128
 
-// Speaker on GP22. Driven by the hardware PWM slice (audio/pwm.cpp), not PIO.
+// MAX98357A I2S amp (GAIN to GND). LRC is on the pin below BCLK, so the
+// clock pins are swapped relative to the default i2s program.
+#define AUDIO_I2S_DATA_PIN 14        // DIN
+#define AUDIO_I2S_CLOCK_PIN_BASE 12  // LRC, BCLK on 13
+#define AUDIO_I2S_SWAP_CLOCKS
+#define AUDIO_ENABLE_PIN 15          // SD, driven high at audio init (left channel)
+#define AUDIO_I2S_PIO 1              // display uses pio0
+
+// Old PWM speaker on GP22, used with blit_driver(audio pwm)
 #define PICO_AUDIO_PWM_MONO_PIN 22
-// #define AUDIO_ENABLE_PIN 15  // amp / mute GPIO, driven high at audio init
 
 #define LED_PIN 16
 

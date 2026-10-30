@@ -15,3 +15,20 @@ loop0:
     out pins, 1    side 0b00
     jmp x--, loop0 side 0b01
     out pins, 1    side 0b10 ; last bit and switch LRCLK
+
+; same as above with the clock pins swapped (sideset lrclk, bck)
+; for boards wired with LRCLK on the lower pin
+.program i2s_swapped
+.side_set 2
+    set x, 14      side 0b11
+
+loop1:
+    out pins, 1    side 0b01
+    jmp x--, loop1 side 0b11
+    out pins, 1    side 0b00 ; last bit and switch LRCLK
+    set x, 14      side 0b10 ; prepare for next word
+
+loop0:
+    out pins, 1    side 0b00
+    jmp x--, loop0 side 0b10
+    out pins, 1    side 0b01 ; last bit and switch LRCLK
