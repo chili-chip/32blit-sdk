@@ -50,7 +50,7 @@ make
 | ------ | ---------- |
 | `32blit-pico/loader/blit-loader.uf2` | the loader (system firmware) |
 | `vgc-os/vgc-os.blit` | the home screen |
-| `vgc-os/vgc-os-factory.uf2` | the loader with the home screen pre-installed |
+| `vgc-os/vgc-os-factory.uf2` | the loader with the home screen pre-installed, plus the handler apps in `VGC_OS_FACTORY_APPS` |
 | `launcher/launcher.blit` | the stock 32blit launcher, as an alternative home screen |
 
 The CI's "VGC-blit" build produces the same files.
@@ -61,7 +61,34 @@ The CI's "VGC-blit" build produces the same files.
 python3 tools/factory-uf2.py blit-loader.uf2 vgc-os.blit@256 -o vgc-os-factory.uf2
 ```
 
-The same tool can preload games, for example for a batch of consoles: add a `game.blit@<offset>` argument per game. Offsets must be multiples of 64 and must not overlap: each game starts after the end of the previous file, rounded up to the next 64 KB.
+The same tool can preload more apps and games. Give a `.blit` an offset (`game.blit@<offset>`), or leave the offset out and it goes right after the one before, on the next 64 KB boundary. Offsets must be multiples of 64 and must not overlap.
+
+```bash
+python3 tools/factory-uf2.py blit-loader.uf2 vgc-os.blit@256 citsy-32blit.blit chili-beat.blit -o vgc-os-factory.uf2
+```
+
+### Handler apps in the factory image
+
+The factory image comes with the apps that play game files, so `.bitsy` and
+`.beat` games show up on the home screen of a new console with nothing to
+install:
+
+| App | Plays | From |
+|---|---|---|
+| citsy (`citsy-32blit.blit`) | `.bitsy` | [citsy-32blit releases](https://github.com/chili-chip/citsy-32blit/releases) |
+| Chili Beat (`chili-beat.blit`) | `.beat` | [chili-beat releases](https://github.com/chili-chip/chili-beat/releases) |
+
+CI downloads the latest release of each and passes them to CMake. To build the
+same image yourself, download them and set `VGC_OS_FACTORY_APPS`:
+
+```bash
+cmake .. -DVGC_OS_FACTORY_APPS="/path/to/citsy-32blit.blit;/path/to/chili-beat.blit" ...
+```
+
+Leave it empty for a factory image with only the home screen. Updating a
+handler app later works like any game: copy the new `.blit` to the drive.
+
+The tool's tests: `cd tools && python3 -m unittest test_factory_uf2`.
 
 ## Installing over USB serial
 

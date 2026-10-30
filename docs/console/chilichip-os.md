@@ -36,7 +36,7 @@ Plug the console into a computer while the home screen is showing and a drive na
 
 ## Apps that play files
 
-Some apps play files rather than being games themselves, such as citsy, which plays Bitsy games (`.bitsy`). An app like this has `category: handler` and lists the extensions it plays in `filetypes` (see [Metadata and the home screen](../guides/metadata.md#apps-that-play-files)). Install it like any game. The home screen then:
+Some apps play files rather than being games themselves, such as citsy, which plays Bitsy games (`.bitsy`), and Chili Beat, which plays `.beat` games. Both come preinstalled in the factory image (see [Flashing](flashing.md#handler-apps-in-the-factory-image)). An app like this has `category: handler` and lists the extensions it plays in `filetypes` (see [Metadata and the home screen](../guides/metadata.md#apps-that-play-files)). Other handler apps install like any game. The home screen then:
 
 * hides the app itself. It is listed in **Settings → Installed software**, where it can be deleted. Deleting it removes its file cards too;
 * shows a card for every file with one of its extensions, at the top of the USB drive or one folder down (for example `bitsy-games/`). The card is titled with the file name, and the app's title shows as the author. These files are also listed in **Settings → Installed software**, and deleting one there (or from its info on the home screen) removes the file from the drive;

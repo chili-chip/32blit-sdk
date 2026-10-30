@@ -4,9 +4,10 @@
 Each .blit is placed in flash at the given offset, where the loader finds it
 as an installed game, so one copy in BOOTSEL mode sets up the whole console.
 
-    factory-uf2.py blit-loader.uf2 vgc-os.blit@256 -o factory.uf2
+    factory-uf2.py blit-loader.uf2 vgc-os.blit@256 citsy.blit chili-beat.blit -o factory.uf2
 
-Offsets are in KB and must be multiples of 64, at or above 256.
+Offsets are in KB and must be multiples of 64, at or above 256. A .blit with no
+offset goes right after the one before it, on the next 64 KB boundary.
 """
 
 import argparse
@@ -38,10 +39,16 @@ def read_uf2(path):
     return blocks
 
 
-def parse_blit_arg(arg):
+BLOCK = 64 * 1024
+
+
+def parse_blit_arg(arg, after):
+    """(path, offset in bytes). `after` is where the previous .blit ends, or None for the first."""
     path, sep, offset = arg.rpartition('@')
     if not sep:
-        sys.exit(f'{arg}: expected file.blit@offset_kb')
+        if after is None:
+            sys.exit(f'{arg}: the first .blit needs an offset, as file.blit@offset_kb')
+        return arg, (after + BLOCK - 1) // BLOCK * BLOCK
 
     offset_kb = int(offset, 0)
     if offset_kb < 256 or offset_kb % 64:
@@ -53,7 +60,7 @@ def parse_blit_arg(arg):
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     parser.add_argument('loader', help='loader .uf2')
-    parser.add_argument('blits', nargs='+', metavar='file.blit@offset_kb', help='.blit file and its flash offset in KB')
+    parser.add_argument('blits', nargs='+', metavar='file.blit[@offset_kb]', help='.blit file and its flash offset in KB; with no offset, it goes after the one before')
     parser.add_argument('-o', '--output', required=True, help='output .uf2')
     args = parser.parse_args()
 
@@ -61,9 +68,11 @@ def main():
     family = blocks[0][3]
     used = [(addr, addr + len(payload)) for _, addr, payload, _ in blocks]
 
+    after = None
     for arg in args.blits:
-        path, offset = parse_blit_arg(arg)
+        path, offset = parse_blit_arg(arg, after)
         data = open(path, 'rb').read()
+        after = offset + len(data)
         start = FLASH_BASE + offset
 
         for lo, hi in used:
