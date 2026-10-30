@@ -157,16 +157,12 @@ Combine them for rotations: `0b101` is 90° clockwise, `0b011` is 90° anticlock
 void mode7(Surface *dest, Surface *tiles, MapLayer *layer, float fov, float angle,
            Vec2 pos, float near, float far, Rect viewport);
 Vec2  world_to_screen(Vec2 w, float fov, float angle, Vec2 pos, float near, float far, Rect viewport);
-float world_to_scale(Vec2 w, float fov, float angle, Vec2 pos, float near, float far, Rect viewport);
+Vec2  screen_to_world(Vec2 s, float fov, float angle, Vec2 pos, float near, float far, Rect viewport);
 ```
 
-A perspective floor in the style of the SNES "Mode 7", drawn from the older `Map`/`MapLayer` types below. It's experimental:
+A perspective floor in the style of the SNES "Mode 7", drawn from the older `Map`/`MapLayer` types below. It's experimental. Call `tiles->generate_mipmaps(depth)` first to blend distant rows smoothly; without mipmaps the sheet is drawn at full size. `viewport` can be anywhere on the screen, and `dest->pen` and `dest->alpha` are left as they were.
 
-* `tiles` must have mipmaps (`tiles->generate_mipmaps(depth)`), and `viewport.x` must be `0`;
-* it changes `dest->alpha` and leaves it changed, and draws a magenta debug pixel;
-* `world_to_scale` is declared but not implemented, so calling it fails to link.
-
-For new games, a `TileMap` with a `scanline_callback` gives the same effect with less overhead and none of these problems. Each row of the floor is a horizontal line of the map, further away and more zoomed out the closer it is to the horizon:
+For new games, a `TileMap` with a `scanline_callback` gives the same effect with less overhead. Each row of the floor is a horizontal line of the map, further away and more zoomed out the closer it is to the horizon:
 
 ```cpp
 Vec2 camera(128, 128);  // position on the map, in pixels
@@ -191,6 +187,9 @@ Read the matrices from the right: the row's pixels are moved so its centre is 64
 
 `world_to_screen(w, ...)`
 :   Where a world position appears on screen in `mode7()`'s view, for drawing sprites on the floor.
+
+`screen_to_world(s, ...)`
+:   The reverse: the world position under screen point `s`, for example to find the tile under the cursor.
 
 ## `Map` and `MapLayer`
 
@@ -242,4 +241,4 @@ bool blocked(Point tile) {
 `tiles_in_rect(r, f)`
 :   Calls `f` with the tile position of every tile under the pixel rectangle `r`, clipped to the map. Handy for checking collisions over a sprite's whole area.
 
-Unlike `TileMap`, `MapLayer` tile ids start at 1, with 0 meaning empty, and `add_layer` doesn't create a `transforms` array: fill `transforms` yourself (one byte per tile) before drawing a layer with `mode7()`.
+Unlike `TileMap`, `MapLayer` tile ids start at 1, with 0 meaning empty, and `add_layer` doesn't create a `transforms` array. `mode7()` draws tiles without an entry untransformed; to flip or rotate tiles, fill `transforms` yourself (one byte per tile).
