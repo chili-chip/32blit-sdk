@@ -109,6 +109,7 @@ The engine and API are the same as upstream 32blit, so 32blit games and examples
 
 ## Getting help
 
+* Chat with the ChiliChip community on [Discord](https://discord.gg/xB9sPYKBZc).
 * Report bugs and ask questions on the [32blit-sdk issue tracker](https://github.com/chili-chip/32blit-sdk/issues).
 * Start a new game from the [game template](https://github.com/chili-chip/game-template).
 * The upstream [32blit community](https://discord.gg/7qM9ftC) knows the engine well; questions about the VGC Zero belong in this fork's issues.
