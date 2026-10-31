@@ -6,7 +6,23 @@ Everything from upstream 32blit still works: the same engine and API, the SDL bu
 
 **Documentation: <https://sdk.chilichip.eu/>**: installing the tools, your first game, tutorials, example games, guides and the full API reference. The site is built from the [`docs/`](docs/) folder.
 
-To start a new VGC Zero game, use the [ChiliChip game template](https://github.com/chili-chip/game-template) and follow [Getting started](https://sdk.chilichip.eu/getting-started/).
+To start a new VGC Zero game, use the [ChiliChip game template](https://github.com/chili-chip/game-template) and follow [Getting started](https://sdk.chilichip.eu/getting-started/). Don't use `32blit setup` from the 32blit tools for this: it clones the upstream 32blit repositories, not this fork.
+
+## Help & Support
+
+**ChiliChip, the VGC Zero and ChiliChip OS** (anything in this fork):
+
+* Discord: <https://discord.gg/xB9sPYKBZc>
+* Documentation: <https://sdk.chilichip.eu/> and <https://chilichip.eu/docs/>
+* Bugs and questions: [this repository's issues](https://github.com/chili-chip/32blit-sdk/issues)
+
+**Upstream 32blit** (the engine itself, the original 32blit console, other Pico boards): see [Help & Support](#help--support-upstream-32blit) at the end of this README.
+
+## Contributing
+
+* **Where a fix goes.** An engine bug that also exists in upstream 32blit should go [upstream](https://github.com/32blit/32blit-sdk) first; we merge upstream changes regularly, so it reaches this fork too. Changes for the VGC Zero, `32blit-pico`'s `chilichip_vgc` board, ChiliChip OS (`vgc-os`, the loader), the docs site and the tooling come here.
+* **Branch.** Open pull requests against `master`.
+* **Checks.** A pull request runs the `CMake` builds, `CMake / Emscripten`, `Visual Studio (.sln)` and the docs site (`mkdocs build --strict` plus the examples). They must pass before merging. [Working on these docs](https://sdk.chilichip.eu/contributing/) explains how to preview and build the docs.
 
 ## What this fork adds
 
@@ -97,11 +113,11 @@ The [32blit-examples](https://github.com/32blit/32blit-examples) repository cont
 
 Refer to the OS/platform specific documentation files in the `docs/` folder for instructions on how to compile and run these examples.
 
-To get started writing your own game, you should use the 32blit boilerplate - https://github.com/32blit/32blit-boilerplate/
+To get started writing your own game for the VGC Zero, use the [ChiliChip game template](https://github.com/chili-chip/game-template). The upstream [32blit boilerplate](https://github.com/32blit/32blit-boilerplate/) targets the original 32blit.
 
-## Help & Support
+## Help & Support (upstream 32blit)
 
-Join the 32blit community on:
+For questions about the 32blit engine and the original 32blit console, join the 32blit community on:
 
 * Discord (Chat) - https://discord.gg/7qM9ftC
 * Discourse (Forum) - https://forums.pimoroni.com/c/32blit/21
