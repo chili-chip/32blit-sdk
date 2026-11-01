@@ -199,10 +199,31 @@ jobs:
         echo "TRAVIS_TAG=${{github.event.release.tag_name}}" >> $GITHUB_ENV
         python3 tools/update-contributors.py || python tools/update-contributors.py
 
+    # The factory image comes with the handler apps that play .bitsy and .beat files.
+    - name: Get handler apps for the factory image
+      if: matrix.name == 'VGC (.blit)'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        apps=${{runner.workspace}}/factory-apps
+        mkdir -p $apps && cd $apps
+        # An app with no release yet is left out with a warning, so the build still runs.
+        if gh release download -R chili-chip/citsy-32blit -p '*-VGC-BLIT.zip'; then
+          unzip -j -o *-VGC-BLIT.zip 'bin/*.blit'
+        else
+          echo "::warning::No citsy-32blit release: the factory image has no .bitsy player"
+        fi
+        if ! gh release download -R chili-chip/chili-beat -p 'chili-beat.blit'; then
+          echo "::warning::No chili-beat release: the factory image has no .beat player"
+        fi
+        list=$(ls $apps/*.blit 2>/dev/null | paste -sd ';' || true)
+        echo "FACTORY_APPS=$list" >> $GITHUB_ENV
+
     - name: Configure CMake
       shell: bash
       working-directory: ${{runner.workspace}}/build
-      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCMAKE_INSTALL_PREFIX=`pwd`/install -DCPACK_PACKAGE_FILE_NAME=${{env.RELEASE_FILE}} ${{matrix.cmake-args}}
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCMAKE_INSTALL_PREFIX=`pwd`/install -DCPACK_PACKAGE_FILE_NAME=${{env.RELEASE_FILE}} ${{matrix.cmake-args}} ${FACTORY_APPS:+"-DVGC_OS_FACTORY_APPS=$FACTORY_APPS"}
 
     # Problem matching
     - if: runner.os != 'Windows'
