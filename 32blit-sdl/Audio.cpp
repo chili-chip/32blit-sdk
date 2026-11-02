@@ -37,18 +37,20 @@ Audio::~Audio() {
 }
 
 static void _audio_bufferfill(short *buffer, int buffer_size){
-    memset(buffer, 0, buffer_size);
+    if(buffer) {
+        memset(buffer, 0, buffer_size * sizeof(short));
+    }
 
     for(auto sample = 0; sample < buffer_size; sample++){
-        buffer[sample] = (int)blit::get_audio_frame() - 0x8000;
+        // Always get audio frame to update audio state
+        int16_t frame = (int)blit::get_audio_frame() - 0x8000;
+        if(buffer) {
+            buffer[sample] = frame;
+        }
     }
 }
 
 static void _audio_callback(void *userdata, uint8_t *stream, int len){
     Audio *audio = static_cast<Audio *>(userdata);
-    if(audio->is_muted()) {
-        memset(stream, 0, len);
-        return;
-    }
-    _audio_bufferfill((short *)stream, len / 2);
+    _audio_bufferfill(audio->is_muted() ? nullptr : (short *)stream, len / 2);
 }
