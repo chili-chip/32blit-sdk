@@ -32,3 +32,9 @@ python3 -m http.server
 ```
 
 Finally, open the URL given by Python's HTTP server in your browser and open your project's .html file.
+
+## Audio Mute Button
+
+The web player includes a mute button that allows users to toggle audio on and off. The mute functionality is exposed through a JavaScript function `blit_set_audio_muted(muted)` that can be called with `1` to mute or `0` to unmute.
+
+When muted, audio processing continues internally to maintain proper audio state, but no sound is output to the speakers.

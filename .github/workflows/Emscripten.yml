@@ -96,7 +96,7 @@ jobs:
     # Pages project. The project and its custom domain are set up in Cloudflare,
     # not here.
     - name: Deploy to Cloudflare Pages
-      if: github.ref == 'refs/heads/master'
+      if: github.ref == 'refs/heads/master' && github.repository == 'chili-chip/32blit-sdk'
       uses: cloudflare/wrangler-action@v4
       with:
         apiToken: ${{secrets.CLOUDFLARE_API_TOKEN}}
