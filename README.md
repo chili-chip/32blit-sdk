@@ -1,4 +1,4 @@
-# ChiliChip Game SDK
+# chilichip console SDK
 
 This is a fork of the [32blit SDK](https://github.com/32blit/32blit-sdk), adapted to build games for the **ChiliChip VGC Zero** console. The VGC Zero is a handheld built on the RP2350 with a 128x128 SSD1351 OLED, PWM audio, 16 MB of flash and A/B/X/Y, MENU, HOME and d-pad buttons.
 
@@ -7,6 +7,8 @@ Everything from upstream 32blit still works: the same engine and API, the SDL bu
 **Documentation: <https://sdk.chilichip.eu/>**: installing the tools, your first game, tutorials, example games, guides and the full API reference. The site is built from the [`docs/`](docs/) folder.
 
 To start a new VGC Zero game, use the [ChiliChip game template](https://github.com/chili-chip/game-template) and follow [Getting started](https://sdk.chilichip.eu/getting-started/). Don't use `32blit setup` from the 32blit tools for this: it clones the upstream 32blit repositories, not this fork.
+
+For menus, scenes, saves, high scores and music, add the [chili game SDK](https://github.com/chili-chip/chili-game-sdk) on top. Its docs are at <https://game-sdk.chilichip.eu/>.
 
 ## Help & Support
 
