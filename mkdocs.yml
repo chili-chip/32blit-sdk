@@ -1,10 +1,10 @@
-site_name: ChiliChip Game SDK
-site_description: Make games for the ChiliChip VGC Zero console with the 32blit-based ChiliChip Game SDK.
+site_name: chilichip console SDK
+site_description: Make games for the chilichip console with the 32blit-based chilichip console SDK.
 site_url: https://sdk.chilichip.eu/
 repo_url: https://github.com/chili-chip/32blit-sdk
 repo_name: chili-chip/32blit-sdk
 edit_uri: edit/master/docs/
-copyright: The ChiliChip Game SDK is a fork of the <a href="https://github.com/32blit/32blit-sdk">32blit SDK</a>, MIT licensed.
+copyright: The chilichip console SDK is a fork of the <a href="https://github.com/32blit/32blit-sdk">32blit SDK</a>, MIT licensed.
 
 # the repository's own site/ folder holds the web examples, so build elsewhere
 site_dir: build-docs

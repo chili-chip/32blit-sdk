@@ -3,11 +3,14 @@ hide:
   - navigation
 ---
 
-# ChiliChip Game SDK
+# chilichip console SDK
 
 Make games for the **ChiliChip VGC Zero**, a pocket console with a 128×128 colour OLED screen, built on the RP2350.
 
 The SDK is a fork of the [32blit SDK](https://github.com/32blit/32blit-sdk). You write your game in C++ against one small API, run it on your computer while you work on it, and build it as a `.blit` file that you copy onto the console over USB.
+
+!!! tip "Menus, scenes, saves and music"
+    The [chili game SDK](https://game-sdk.chilichip.eu/) is a library on top of this SDK. It gives your game a title menu, a pause menu, scenes, a save file with high scores, music and effects. The [game template](https://github.com/chili-chip/game-template) already uses it.
 
 <div class="gallery" markdown>
 [![Chili Catch](assets/screenshots/chili-catch.png)](tutorials/complete-game.md)
