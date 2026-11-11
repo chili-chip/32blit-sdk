@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-    - uses: actions/checkout@v7
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
     - name: Install deps
       run: |
@@ -35,7 +35,7 @@ jobs:
       run: mkdocs build --strict
 
     # Problem matching
-    - uses: ammaraskar/gcc-problem-matcher@master
+    - uses: ammaraskar/gcc-problem-matcher@cb2e3f949c41b7818628f35f8484a9b0acf90cf9 # master
 
     # the examples are included in the docs, so make sure they still build
     - name: Build Examples
