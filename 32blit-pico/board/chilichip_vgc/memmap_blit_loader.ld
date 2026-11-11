@@ -166,6 +166,11 @@ SECTIONS
     .api_data : {
         __api_data_start = .;
         KEEP (*(*.api_data))
+        /* BLIT_SANDBOX: RAM a sandboxed game may also write (sandbox.cpp) */
+        . = ALIGN(32);
+        KEEP (*(.bss.sandbox_shared*))
+        . = ALIGN(32);
+        __sandbox_shared_end = .;
     }
 
     .ram_vector_table (NOLOAD): {

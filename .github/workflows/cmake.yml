@@ -82,6 +82,15 @@ jobs:
             cmake-args: -D32BLIT_DIR=$GITHUB_WORKSPACE -DPICO_SDK_PATH=$GITHUB_WORKSPACE/pico-sdk -DPICO_BOARD=chilichip_vgc -DPICO_PLATFORM=rp2350-arm-s -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/pico2.toolchain -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
             apt-packages: ccache gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib python3-requests
 
+          # the loader with the game sandbox (32blit-sdk #91), and its test on QEMU's Cortex-M33
+          - os: ubuntu-22.04
+            pico-sdk: true
+            name: VGC (sandbox)
+            cache-key: vgc-sandbox
+            artifact-suffix: VGC-sandbox
+            cmake-args: -D32BLIT_DIR=$GITHUB_WORKSPACE -DPICO_SDK_PATH=$GITHUB_WORKSPACE/pico-sdk -DPICO_BOARD=chilichip_vgc -DPICO_PLATFORM=rp2350-arm-s -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/pico2.toolchain -DBLIT_SANDBOX=ON -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+            apt-packages: ccache gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib python3-requests qemu-system-arm
+
           - os: ubuntu-22.04
             pico-sdk: true
             name: VGC (.blit)
@@ -238,6 +247,12 @@ jobs:
         ccache --zero-stats || true
         cmake --build . --config $BUILD_TYPE -j 2
         ccache --show-stats || true
+
+    - name: Sandbox test (QEMU)
+      if: matrix.name == 'VGC (sandbox)'
+      working-directory: ${{runner.workspace}}/build
+      shell: bash
+      run: cmake --build . --target run-sandbox-test
 
     - name: Prepare Artifact
       if: github.event_name != 'release'
