@@ -119,6 +119,7 @@ nav:
       - Flashing and the loader: console/flashing.md
       - Storage, saves and memory: console/storage.md
       - Display driver: console/display.md
+      - Game sandbox: console/sandbox.md
   - API reference:
       - api/index.md
       - Engine and game loop: api/engine.md

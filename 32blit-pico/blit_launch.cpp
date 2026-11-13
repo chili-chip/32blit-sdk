@@ -16,6 +16,7 @@
 #include "blit_launch.hpp"
 #include "file.hpp"
 #include "overlay.hpp"
+#include "sandbox.hpp"
 
 #ifdef PICO_RP2350
 #include "flash_translation.hpp"
@@ -450,6 +451,8 @@ static void set_translation(uint32_t atrans) {
 }
 #endif
 
+static bool is_launcher_at(uint32_t offset);
+
 void delayed_launch() {
   if(!requested_launch_offset)
     return;
@@ -481,8 +484,29 @@ void delayed_launch() {
 
   launch_pre_init();
 
-  if(!header->init(0)) {
+#if BLIT_SANDBOX_ENABLED
+  // the image as the game sees it: through the translation window, or where it is installed
+  uint32_t installed_start = FLASH_BASE + current_game_offset;
+  uint32_t installed_end = installed_start + get_installed_file_size(current_game_offset);
+  if(header_offset != current_game_offset) {
+    uint32_t window = FLASH_BASE + flash_translation_max_size;
+    sandbox_start_game(window, window + (installed_end - installed_start), is_launcher_at(current_game_offset));
+    sandbox_set_installed_copy(installed_start, installed_end);
+  } else
+    sandbox_start_game(installed_start, installed_end, is_launcher_at(current_game_offset));
+
+  bool init_ok = sandbox_call(reinterpret_cast<const void *>(header->init), 0) & 0xFF;
+#else
+  bool init_ok = header->init(0);
+#endif
+
+  if(!init_ok) {
     blit::debugf("failed to init game!\n");
+#if BLIT_SANDBOX_ENABLED
+    if(auto reason = sandbox_stop_reason())
+      blit::debugf("game stopped: %s\n", reason);
+    sandbox_stop_game();
+#endif
     current_game_offset = last_game_offset;
 #ifdef PICO_RP2350
     set_translation(last_atrans);
@@ -490,8 +514,14 @@ void delayed_launch() {
     return;
   }
 
+#if BLIT_SANDBOX_ENABLED
+  sandbox_set_entry_points(reinterpret_cast<const void *>(header->tick), reinterpret_cast<const void *>(header->render));
+  blit::render = sandbox_render;
+  do_tick = sandbox_tick;
+#else
   blit::render = header->render;
   do_tick = header->tick;
+#endif
 }
 
 void list_installed_games(std::function<void(const uint8_t *, uint32_t, uint32_t)> callback) {

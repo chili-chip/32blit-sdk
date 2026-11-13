@@ -18,6 +18,9 @@ namespace blit {
 
   uint32_t prng_xorshift_state = 0x32B71700;
 
+  // set by a host that must not run game code here (the RP2350 sandbox, 32blit-sdk #91)
+  volatile bool block_wave_buffer_callbacks = false;
+
   uint32_t BLIT_AUDIO_FUNC(prng_xorshift_next)() {
     uint32_t x = prng_xorshift_state;
     x ^= x << 13;
@@ -149,7 +152,7 @@ namespace blit {
           channel_sample += channel.wave_buffer[channel.wave_buf_pos];
           if (++channel.wave_buf_pos == 64) {
             channel.wave_buf_pos = 0;
-            if(channel.wave_buffer_callback)
+            if(channel.wave_buffer_callback && !block_wave_buffer_callbacks)
                 channel.wave_buffer_callback(channel);
           }
           waveform_count++;
