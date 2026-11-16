@@ -87,6 +87,22 @@ if(BLIT_ENABLE_CORE1)
     list(APPEND BLIT_BOARD_DEFINITIONS ENABLE_CORE1)
 endif()
 
+# Run .blit games unprivileged behind the MPU (32blit-sdk #91, docs/Sandbox.md).
+# Only the loader is affected; off until it has been tested on the console.
+option(BLIT_SANDBOX "Sandbox .blit games in the loader (RP2350)" OFF)
+if(BLIT_SANDBOX)
+    if(NOT PICO_PLATFORM STREQUAL "rp2350-arm-s")
+        message(FATAL_ERROR "BLIT_SANDBOX needs PICO_PLATFORM rp2350-arm-s (the Cortex-M33 MPU)")
+    endif()
+    target_sources(BlitHalPico INTERFACE
+        ${CMAKE_CURRENT_LIST_DIR}/sandbox.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/sandbox_gate.S
+    )
+    target_compile_definitions(BlitHalPico INTERFACE BLIT_SANDBOX=1)
+    target_link_libraries(BlitHalPico INTERFACE hardware_exception)
+    add_subdirectory(sandbox_test)
+endif()
+
 target_compile_definitions(BlitHalPico INTERFACE ${BLIT_BOARD_DEFINITIONS})
 target_link_libraries(BlitHalPico INTERFACE ${BLIT_BOARD_LIBRARIES})
 

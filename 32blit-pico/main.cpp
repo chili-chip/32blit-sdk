@@ -1,5 +1,6 @@
 #include <cstdio>
 #include <cstring>
+#include <new>
 
 #include "hardware/clocks.h"
 #include "hardware/i2c.h"
@@ -23,6 +24,7 @@
 #include "led.hpp"
 #include "multiplayer.hpp"
 #include "power.hpp"
+#include "sandbox.hpp"
 #include "screen_sleep.hpp"
 #include "settings.hpp"
 #include "storage.hpp"
@@ -33,7 +35,15 @@
 
 using namespace blit;
 
+#if BLIT_SANDBOX_ENABLED
+// a sandboxed game writes its audio channels, so they live in the RAM it may write (sandbox.cpp)
+[[gnu::section(".bss.sandbox_shared.channels")]]
+alignas(blit::AudioChannel) uint8_t sandbox_channel_storage[sizeof(blit::AudioChannel) * CHANNEL_COUNT];
+#define API_CHANNELS reinterpret_cast<blit::AudioChannel *>(sandbox_channel_storage)
+#else
 static blit::AudioChannel channels[CHANNEL_COUNT];
+#define API_CHANNELS ::channels
+#endif
 
 int (*do_tick)(uint32_t time) = blit::tick;
 
@@ -156,11 +166,16 @@ static uint8_t *get_screen_data() {
 }
 
 // blit API
+#if BLIT_SANDBOX_ENABLED
+// the loader's own: games get sandbox.cpp's, with a trampoline in each slot
+static const blit::APIConst blit_api_const {
+#else
 [[gnu::section(".rodata.api_const")]]
 static const blit::APIConst blit_api_const {
+#endif
   blit::api_version_major, blit::api_version_minor,
 
-  ::channels,
+  API_CHANNELS,
 
   ::set_screen_mode,
   ::set_screen_palette,
@@ -257,14 +272,21 @@ void quit_to_launcher() {
   // let the game save before it's gone
   auto on_quit = api_data.on_quit;
   api_data.on_quit = nullptr;
+#if BLIT_SANDBOX_ENABLED
+  sandbox_call(reinterpret_cast<const void *>(on_quit));
+#else
   if(on_quit)
     on_quit();
+#endif
 
   system_menu_reset();
 
   close_open_files();
 
   launch_pre_init();
+#if BLIT_SANDBOX_ENABLED
+  sandbox_stop_game();
+#endif
   ::init(); // re-initialising the loader is effectively a reset
 }
 
@@ -273,6 +295,14 @@ static int64_t quit_timeout_callback(alarm_id_t id, void *user_data) {
   quit_timeout_alarm_id = 0;
 
   // the game hasn't returned to the main loop, quit without saving
+#if BLIT_SANDBOX_ENABLED
+  // stop the game where it is; the main loop then quits as usual
+  if(quit_requested && sandbox_in_call()) {
+    api_data.on_quit = nullptr;
+    sandbox_abort_game("did not quit within 2 s");
+    return 0;
+  }
+#endif
   if(quit_requested) {
     quit_requested = false;
     api_data.on_quit = nullptr;
@@ -293,6 +323,14 @@ static int64_t home_hold_callback(alarm_id_t id, void *user_data) {
 }
 
 static void handle_quit_request() {
+#if BLIT_SANDBOX_ENABLED
+  // a sandboxed game that faulted or was stopped quits without saving
+  if(sandbox_stop_reason() && !quit_requested) {
+    debugf("game stopped: %s\n", sandbox_stop_reason());
+    api_data.on_quit = nullptr;
+    quit_requested = true;
+  }
+#endif
   if(!quit_requested)
     return;
 
@@ -374,6 +412,11 @@ static void init_i2c() {
 }
 
 int main() {
+#if BLIT_SANDBOX_ENABLED
+  for(int i = 0; i < CHANNEL_COUNT; i++)
+    new (&API_CHANNELS[i]) blit::AudioChannel();
+  sandbox_init();
+#endif
 #if OVERCLOCK_250
 #ifndef PICO_RP2350
   // Apply a modest overvolt, default is 1.10v.

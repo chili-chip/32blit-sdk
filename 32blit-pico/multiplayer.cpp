@@ -1,6 +1,7 @@
 #include <cstring>
 #include "multiplayer.hpp"
 
+#include "sandbox.hpp"
 #include "usb.hpp"
 
 #include "engine/api_private.hpp"
@@ -40,8 +41,12 @@ CDCCommand::Status CDCUserCommand::update() {
   mp_buffer_off += usb_cdc_read(mp_buffer + mp_buffer_off, mp_buffer_len - mp_buffer_off);
 
   if(mp_buffer_off == mp_buffer_len) {
+#if BLIT_SANDBOX_ENABLED
+    sandbox_message_received(mp_buffer, mp_buffer_len);
+#else
     if(blit::api_data.message_received)
       blit::api_data.message_received(mp_buffer, mp_buffer_len);
+#endif
 
     delete[] mp_buffer;
     mp_buffer = nullptr;
