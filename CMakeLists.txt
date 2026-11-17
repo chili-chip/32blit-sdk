@@ -5,6 +5,8 @@ include(32blit-pico/sdk_import.cmake)
 
 project(32blit)
 
+enable_testing()
+
 if(MSVC)
     add_compile_options("/W4" "/wd4244" "/wd4324" "/wd4458" "/wd4100")
 else()

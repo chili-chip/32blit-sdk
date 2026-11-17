@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cstdio>
 #include <cstring>
 
 #include "settings.hpp"
@@ -37,8 +38,8 @@ static int sleep_index() {
 
 static std::string sleep_text(uint16_t seconds) {
   if(!seconds)
-    return "Off";
-  return std::to_string(seconds / 60) + " min";
+    return "OFF";
+  return std::to_string(seconds / 60) + " MIN";
 }
 
 void settings_enter(Screen screen) {
@@ -149,7 +150,7 @@ static void render_settings() {
   rows[Volume].label = "Volume";
   rows[Volume].bar = settings.volume;
 
-  rows[Sleep].label = "Screen sleep";
+  rows[Sleep].label = "Sleep after";
   rows[Sleep].value = sleep_text(settings.sleep_timeout);
 
   rows[Games].label = "Installed software";
@@ -158,7 +159,9 @@ static void render_settings() {
   rows[Storage].label = "Storage";
   rows[About].label = "About";
 
-  draw_list("Settings", rows, selected);
+  // rows that open a page say so, the others change with left and right
+  bool opens = selected == Games || selected == Storage || selected == About;
+  draw_list("SETTINGS", rows, selected, opens ? "A OPEN" : "< > CHANGE", "B BACK");
 }
 
 static void render_games() {
@@ -176,56 +179,87 @@ static void render_games() {
     rows.back().dim = true;
   }
 
-  draw_list("Installed software", rows, empty ? -1 : selected_game);
+  draw_list("SOFTWARE", rows, empty ? -1 : selected_game, empty ? "" : "A INFO", "B BACK");
 }
 
+// "0.1 OF 3.6 MB", short enough to sit next to its label
 static std::string usage_text(uint32_t used, uint32_t total) {
-  return format_size(used) + " of " + format_size(total);
+  const uint32_t mb = 1024 * 1024;
+  if(total < mb)
+    return format_size(used) + " OF " + format_size(total);
+
+  auto tenths = [mb](uint32_t bytes) {
+    uint32_t t = uint32_t((uint64_t(bytes) * 10 + mb / 2) / mb);
+    return std::to_string(t / 10) + "." + std::to_string(t % 10);
+  };
+  return tenths(used) + " OF " + tenths(total) + " MB";
 }
 
-static int permille(uint32_t used, uint32_t total) {
-  return total ? int(uint64_t(used) * 1000 / total) : 0;
+// a label, the usage on the right and a bar under them
+static void draw_usage(int y, const char *label, uint32_t used, uint32_t total) {
+  const int w = screen.bounds.w;
+  auto usage = usage_text(used, total);
+
+  screen.pen = theme::text;
+  screen.text(label, minimal_font, Point(margin, y));
+  screen.pen = theme::muted;
+  screen.text(usage, minimal_font, Point(w - margin - text_width(usage), y));
+
+  // in kB, so the product fits in an int
+  draw_bar(Rect(margin, y + 11, w - margin * 2, 3), used / 1024, std::max<uint32_t>(1, total / 1024));
 }
 
 static void render_storage() {
-  std::vector<ListRow> rows;
+  draw_background();
+  draw_status_bar("STORAGE");
 
   if(!have_info) {
-    rows.push_back({"Not available"});
-    rows.back().dim = true;
+    screen.pen = theme::slate;
+    screen.text("Not available", minimal_font, Point(margin, 20));
   } else {
-    rows.push_back({"Games", usage_text(info.app_flash_used, info.app_flash_total)});
-    ListRow bar;
-    bar.bar = permille(info.app_flash_used, info.app_flash_total);
-    bar.bar_max = 1000;
-    rows.push_back(bar);
-
-    uint32_t drive_used = info.storage_total - info.storage_free;
-    rows.push_back({"USB drive", usage_text(drive_used, info.storage_total)});
-    bar.bar = permille(drive_used, info.storage_total);
-    rows.push_back(bar);
+    draw_usage(20, "Games", info.app_flash_used, info.app_flash_total);
+    draw_usage(44, "USB drive", info.storage_total - info.storage_free, info.storage_total);
   }
 
-  draw_list("Storage", rows, -1);
+  draw_hints("", "B BACK");
 }
 
 static void render_about() {
-  std::vector<ListRow> rows;
+  const int w = screen.bounds.w;
 
-  auto add = [&rows](const std::string &label, const std::string &value) {
-    rows.push_back({label});
-    rows.push_back({"  " + value});
-    rows.back().dim = true;
+  draw_background();
+  draw_status_bar("ABOUT");
+
+  int y = 18;
+  auto add = [&y, w](const char *label, const std::string &value) {
+    screen.pen = theme::muted;
+    screen.text(label, minimal_font, Point(margin, y));
+    auto fitted = fit_text(value, w - margin * 3 - text_width(label));
+    screen.pen = theme::text;
+    screen.text(fitted, minimal_font, Point(w - margin - text_width(fitted), y));
+    y += 12;
   };
 
   add("OS version", get_metadata().version);
 
   if(have_info) {
     add("Firmware", info.firmware_version);
-    add("Serial number", info.serial);
+
+    int level = get_battery_level();
+    if(level >= 0) {
+      std::string battery = std::to_string(level) + "%";
+      if(int mv = get_battery_voltage()) {
+        char volts[16];
+        snprintf(volts, sizeof(volts), "  %i.%02i V", mv / 1000, mv % 1000 / 10);
+        battery += volts;
+      }
+      add("Battery", battery);
+    }
+
+    add("Serial", info.serial);
   }
 
-  draw_list("About", rows, -1);
+  draw_hints("", "B BACK");
 }
 
 void settings_render(Screen screen) {

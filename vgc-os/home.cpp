@@ -1,4 +1,5 @@
-#include <cmath>
+#include <algorithm>
+#include <cctype>
 
 #include "32blit.hpp"
 
@@ -13,7 +14,9 @@ static Screen current_screen = Screen::home;
 
 // carousel, the last tile is Settings
 static int selected = 0;
-static float slide = 0.0f; // slots the carousel still has to move, animates to 0
+// the selected cover slides in from slide_from pixels, starting at slide_start
+static int slide_from = 0;
+static uint32_t slide_start = 0;
 
 // info screen
 enum InfoAction {
@@ -28,17 +31,25 @@ static Screen info_back = Screen::home;
 
 // dialog over the current screen
 static bool dialog_open = false;
-static std::string dialog_message;
+static std::string dialog_title, dialog_detail;
 static const char *dialog_yes_label = "OK";
 static const char *dialog_no_label = nullptr; // no B choice without one
 static std::function<void()> dialog_on_yes, dialog_on_no;
 
+// titles that scroll when they don't fit
+static ScrollingText home_title, info_title;
+
+// with no games the first tile is a "No games yet" page
+static bool is_empty_tile(int index) {
+  return home_game_count() == 0 && index == 0;
+}
+
 static int num_tiles() {
-  return home_game_count() + 1;
+  return std::max(home_game_count(), 1) + 1;
 }
 
 static bool is_settings_tile(int index) {
-  return index == home_game_count();
+  return index == num_tiles() - 1;
 }
 
 void go_to(Screen screen) {
@@ -53,200 +64,207 @@ void open_info(int game_index, Screen back) {
   current_screen = Screen::info;
 }
 
-void show_confirm(const std::string &message, std::function<void()> on_yes, const char *yes_label, const char *no_label, std::function<void()> on_no) {
+void show_confirm(const std::string &title, const std::string &detail, std::function<void()> on_yes, const char *yes_label, const char *no_label, std::function<void()> on_no) {
   dialog_open = true;
-  dialog_message = message;
+  dialog_title = title;
+  dialog_detail = detail;
   dialog_yes_label = yes_label;
   dialog_no_label = no_label;
   dialog_on_yes = on_yes;
   dialog_on_no = on_no;
 }
 
-void show_message(const std::string &message) {
-  show_confirm(message, nullptr, "OK", nullptr);
+void show_message(const std::string &title, const std::string &detail) {
+  show_confirm(title, detail, nullptr, "OK", nullptr);
 }
 
 void select_game(int game_index) {
   selected = std::max(0, std::min(game_index, num_tiles() - 1));
-  slide = 0.0f;
+  slide_from = 0;
 }
 
 static void start_game(int index) {
   auto title = get_games()[index].title;
   if(!play_game(index))
-    show_message("Couldn't start " + title);
+    show_message("Couldn't start", title);
 }
 
-// carousel
+// home screen
 
-static Rect tile_rect(float r) {
-  const int w = screen.bounds.w;
-  const int big_w = w * 3 / 4, big_h = big_w * 3 / 4;
-  const int small_w = big_w / 2, small_h = big_h / 2;
-  const int centre_y = status_bar_h + 6 + big_h / 2;
-  const float side_dx = w / 2 + 4;
+static constexpr int cover_y = status_bar_h + 1;
+static constexpr int cover_w = 128, cover_h = 96;
 
-  float a = std::min(std::abs(r), 1.0f);
-  float tw = big_w + (small_w - big_w) * a;
-  float th = big_h + (small_h - big_h) * a;
-
-  float dx = r * side_dx;
-  if(std::abs(r) > 1.0f)
-    dx = (r > 0 ? 1 : -1) * (side_dx + (std::abs(r) - 1.0f) * (small_w + 8));
-
-  int cx = w / 2 + int(std::round(dx));
-  return Rect(cx - int(tw) / 2, centre_y - int(th) / 2, int(tw), int(th));
+static std::string upper(std::string text) {
+  for(auto &c : text)
+    c = toupper(c);
+  return text;
 }
 
-static Pen title_colour(const std::string &title) {
-  uint32_t hash = 2166136261u;
-  for(auto c : title)
-    hash = (hash ^ uint8_t(c)) * 16777619u;
+// a game without a cover: its title at 2x on a panel with a cut corner
+static void draw_title_card(const Game &game, int x, int y) {
+  const int cut = 12;
 
-  static const Pen colours[] = {
-    theme::chili, theme::hot, Pen(200, 20, 90), Pen(150, 30, 160), Pen(60, 150, 50), Pen(230, 150, 0)
+  screen.pen = theme::surface;
+  for(int row = 0; row < cover_h; row++)
+    screen.h_span(Point(x, y + row), cover_w - std::max(0, cut - row));
+
+  auto lines = wrap_words(upper(game.title), cover_w - 16, 2);
+  if(lines.size() > 3)
+    lines.resize(3);
+
+  screen.pen = theme::text;
+  int ty = y + 44 - int(lines.size()) * 9;
+  for(auto &line : lines) {
+    auto fitted = fit_text(line, (cover_w - 12) / 2);
+    draw_text_2x(fitted, Point(x + (cover_w - text_width(fitted) * 2) / 2, ty));
+    ty += 18;
+  }
+
+  // files show which app plays them
+  std::string kind = game.is_app_file ? upper(game.author) + " GAME" : "NO COVER";
+  kind = fit_text(kind, cover_w - 8);
+  screen.pen = theme::muted;
+  screen.text(kind, minimal_font, Point(x + (cover_w - text_width(kind)) / 2, y + 82));
+}
+
+static void draw_settings_tile(int x, int y) {
+  // three sliders
+  static const int knobs[] = {36, 12, 26};
+  for(int i = 0; i < 3; i++) {
+    int ty = y + 31 + i * 16;
+    screen.pen = theme::muted;
+    screen.rectangle(Rect(x + 36, ty, 56, 2));
+    screen.pen = theme::text;
+    screen.rectangle(Rect(x + 36 + knobs[i], ty - 4, 6, 10));
+  }
+}
+
+static void draw_centred(const char *text, int x, int y) {
+  screen.text(text, minimal_font, Point(x + (cover_w - text_width(text)) / 2, y));
+}
+
+static void draw_empty_tile(int x, int y) {
+  // a USB plug
+  static const char *const plug[] = {
+    "...##......##...",
+    "...##......##...",
+    "...##......##...",
+    "...##......##...",
+    "################",
+    "################",
+    "################",
+    "################",
+    ".##############.",
+    "..############..",
+    "...##########...",
+    "......####......",
+    "......####......",
+    "......####......",
   };
-  return colours[hash % (sizeof(colours) / sizeof(colours[0]))];
-}
-
-static void draw_card(const Rect &r, Pen colour, const std::string &label) {
-  draw_round_rect(r, colour, mix(colour, theme::background_bottom, 1, 2));
-
-  if(r.w < 40)
-    return;
+  screen.pen = theme::muted;
+  for(int row = 0; row < 14; row++)
+    for(int col = 0; col < 16; col++)
+      if(plug[row][col] == '#')
+        screen.pixel(Point(x + 56 + col, y + 14 + row));
 
   screen.pen = theme::text;
-  auto wrapped = screen.wrap_text(label, r.w - 8, minimal_font);
-  screen.text(wrapped, minimal_font, Rect(r.x + 4, r.y, r.w - 8, r.h), true, TextAlign::center_center);
+  draw_centred("NO GAMES YET", x, y + 40);
+  screen.pen = theme::muted;
+  draw_centred("PLUG IN A USB CABLE AND", x, y + 56);
+  draw_centred("COPY GAMES TO THE", x, y + 65);
+  draw_centred("CHILICHIP DRIVE", x, y + 74);
 }
 
-static void draw_gear(const Rect &r) {
-  draw_round_rect(r, theme::chili, theme::hot);
-
-  Point c(r.x + r.w / 2, r.y + r.h / 2);
-  int radius = std::min(r.w, r.h) / 4;
-
-  screen.pen = theme::text;
-  for(int i = 0; i < 8; i++) {
-    float a = i * pi / 4;
-    Point p(c.x + int(std::cos(a) * radius * 1.3f), c.y + int(std::sin(a) * radius * 1.3f));
-    screen.circle(p, std::max(1, radius / 3));
-  }
-  screen.circle(c, radius);
-  screen.pen = mix(theme::chili, theme::hot, 1, 2);
-  screen.circle(c, std::max(1, radius / 2));
-}
-
-static void draw_tile(int index, const Rect &r, bool focused) {
-  if(focused) {
-    // a hot glow around the selected tile
-    draw_round_rect(Rect(r.x - 3, r.y - 3, r.w + 6, r.h + 6), mix(theme::chili, theme::background_top, 1, 2), mix(theme::hot, theme::background_top, 1, 2));
-    draw_round_rect(Rect(r.x - 2, r.y - 2, r.w + 4, r.h + 4), theme::chili, theme::pepper);
-  }
+static void draw_tile(int index, int x) {
+  const int y = cover_y;
 
   if(is_settings_tile(index))
-    draw_gear(r);
-  else if(auto cover = get_cover(index))
-    screen.stretch_blit(cover, Rect(0, 0, cover->bounds.w, cover->bounds.h), r);
-  else {
-    auto &title = get_games()[index].title;
-    draw_card(r, title_colour(title), title);
-  }
-
-  if(!focused) {
-    screen.pen = theme::shade;
-    screen.rectangle(r);
-  }
+    draw_settings_tile(x, y);
+  else if(is_empty_tile(index))
+    draw_empty_tile(x, y);
+  else if(auto cover = get_cover(index)) {
+    // 1:1, centred, only scaled down when it's bigger than the space
+    Rect src(0, 0, cover->bounds.w, cover->bounds.h);
+    if(src.w > cover_w || src.h > cover_h)
+      screen.stretch_blit(cover, src, Rect(x, y, cover_w, cover_h));
+    else
+      screen.blit(cover, src, Point(x + (cover_w - src.w) / 2, y + (cover_h - src.h) / 2));
+  } else
+    draw_title_card(get_games()[index], x, y);
 }
 
 static void render_home() {
-  const int w = screen.bounds.w, h = screen.bounds.h;
+  const int w = screen.bounds.w;
 
   draw_background();
 
-  // furthest first so the selected tile ends up on top
-  for(int dist = 2; dist >= 0; dist--) {
-    for(int side : {-1, 1}) {
-      if(dist == 0 && side == 1)
-        continue;
-
-      int index = selected + dist * side;
-      if(index < 0 || index >= num_tiles())
-        continue;
-
-      float r = index - selected + slide;
-      draw_tile(index, tile_rect(r), dist == 0 && std::abs(slide) < 0.5f);
-    }
+  int offset = slide_offset(slide_from, now() - slide_start);
+  for(int d : {-1, 1, 0}) {
+    int index = selected + d;
+    if(index < 0 || index >= num_tiles() || (d != 0 && offset == 0))
+      continue;
+    draw_tile(index, (w - cover_w) / 2 + d * cover_w + offset);
   }
 
-  // position dots under the tile
-  auto big = tile_rect(0);
-  const int count = num_tiles();
-  int dots_y = big.y + big.h + 4;
-  if(count <= 16) {
-    const int spacing = 5;
-    int x = w / 2 - ((count - 1) * spacing + 4) / 2;
-    for(int i = 0; i < count; i++) {
-      if(i == selected) {
-        draw_round_rect(Rect(x, dots_y, 6, 2), theme::hot, theme::pepper);
-        x += 7;
-      } else {
-        screen.pen = theme::faint_text;
-        screen.rectangle(Rect(x, dots_y, 2, 2));
-        x += spacing;
-      }
-    }
+  // covers slide under the bars
+  screen.pen = theme::bg;
+  screen.rectangle(Rect(0, 0, w, cover_y));
+  screen.rectangle(Rect(0, cover_y + cover_h, w, screen.bounds.h - cover_y - cover_h));
+
+  draw_status_bar("CHILICHIP");
+
+  // where you are: a bar and a count
+  const int bar_y = cover_y + cover_h;
+  auto pos = position_bar(selected, num_tiles(), w);
+  screen.pen = theme::line;
+  screen.rectangle(Rect(0, bar_y, w, 2));
+  screen.pen = theme::accent;
+  screen.rectangle(Rect(pos.pos, bar_y, pos.size, 2));
+
+  std::string count = std::to_string(selected + 1) + "/" + std::to_string(num_tiles());
+  int count_w = text_width(count);
+  screen.pen = theme::muted;
+  screen.text(count, minimal_font, Point(w - margin - count_w, bar_y + 3));
+
+  std::string title = is_settings_tile(selected) ? "Settings" : is_empty_tile(selected) ? "Welcome" : get_games()[selected].title;
+  screen.pen = theme::text;
+  draw_scrolling_text(home_title, title, Rect(margin, bar_y + 3, w - margin * 3 - count_w, 9));
+
+  if(!is_settings_tile(selected) && !is_empty_tile(selected)) {
+    screen.pen = theme::muted;
+    screen.text(fit_text(get_games()[selected].author, 80), minimal_font, Point(margin, bar_y + 11));
+    screen.text("Y INFO", minimal_font, Point(w - margin - text_width("Y INFO"), bar_y + 11));
   }
+}
 
-  // title of the selected tile
-  Rect title_r(4, dots_y + 4, w - 8, 9);
-  Rect sub_r(4, title_r.y + 10, w - 8, 9);
+static void move_to(int index) {
+  if(index < 0 || index >= num_tiles() || index == selected)
+    return;
 
-  if(is_settings_tile(selected)) {
-    screen.pen = theme::text;
-    screen.text("Settings", fat_font, title_r, true, TextAlign::top_center);
-
-    if(home_game_count() == 0) {
-      screen.pen = theme::hot;
-      screen.text("Copy games to the USB drive", minimal_font, sub_r, true, TextAlign::top_center);
-    }
-  } else {
-    auto &game = get_games()[selected];
-    screen.pen = theme::text;
-    screen.text(fit_text(game.title, title_r.w, fat_font), fat_font, title_r, true, TextAlign::top_center);
-    screen.pen = theme::hot;
-    screen.text(fit_text(game.author, sub_r.w), minimal_font, sub_r, true, TextAlign::top_center);
-  }
-
-  if(is_settings_tile(selected))
-    draw_hints({{'A', "Open"}}, h - 10);
-  else
-    draw_hints({{'A', "Play"}, {'Y', "Info"}}, h - 10);
-
-  draw_status_bar();
+  // the new cover comes in from the side it's on
+  int from = (index > selected ? cover_w : -cover_w) + slide_offset(slide_from, now() - slide_start);
+  slide_from = std::max(-cover_w, std::min(from, cover_w));
+  slide_start = now();
+  selected = index;
 }
 
 static void update_home(uint32_t pressed) {
-  if(pressed & Button::DPAD_LEFT && selected > 0) {
-    selected--;
-    slide -= 1.0f;
-  }
+  if(pressed & Button::DPAD_LEFT)
+    move_to(selected - 1);
 
-  if(pressed & Button::DPAD_RIGHT && selected < num_tiles() - 1) {
-    selected++;
-    slide += 1.0f;
-  }
+  if(pressed & Button::DPAD_RIGHT)
+    move_to(selected + 1);
 
   trim_covers(selected, 2);
 
   if(pressed & Button::A) {
     if(is_settings_tile(selected))
       go_to(Screen::settings);
-    else
+    else if(!is_empty_tile(selected))
       start_game(selected);
   }
 
-  if(pressed & Button::Y && !is_settings_tile(selected))
+  if(pressed & Button::Y && !is_settings_tile(selected) && !is_empty_tile(selected))
     open_info(selected, Screen::home);
 
   if(pressed & Button::MENU)
@@ -278,7 +296,7 @@ static void update_info(uint32_t pressed) {
     if(info_action == Play)
       start_game(info_game);
     else if(info_action == DeleteGame) {
-      show_confirm("Delete " + game.title + "?", [] {
+      show_confirm("Delete game?", game.title + " will be removed.", [] {
         auto title = get_games()[info_game].title;
         bool had_saves = has_save_data(title);
 
@@ -287,22 +305,22 @@ static void update_info(uint32_t pressed) {
 
         // B keeps them, like backing out of any other question
         if(had_saves) {
-          show_confirm("Also delete the save data for " + title + "?", [title] {
+          show_confirm("Delete save data too?", "Progress in " + title + " will be lost.", [title] {
             if(!delete_save_data(title))
-              show_message("Couldn't delete all of the save data");
+              show_message("Couldn't delete", "Some of the save data is still there.");
           }, "Delete", "Keep");
         }
-      }, "Delete", "Cancel");
+      }, "Delete", "Keep");
     } else if(info_action == DeleteSave) {
       if(!has_save_data(info_game))
-        show_message("No save data");
+        show_message("No save data", "This game has not saved anything.");
       else {
-        show_confirm("Delete the save data for " + game.title + "?", [] {
+        show_confirm("Delete save data?", "Progress in " + game.title + " will be lost.", [] {
           if(delete_save_data(info_game))
-            show_message("Save data deleted");
+            show_message("Save data deleted", "");
           else
-            show_message("Couldn't delete all of the save data");
-        }, "Delete", "Cancel");
+            show_message("Couldn't delete", "Some of the save data is still there.");
+        }, "Delete", "Keep");
       }
     }
   }
@@ -312,56 +330,42 @@ static void update_info(uint32_t pressed) {
 }
 
 static void render_info() {
-  const int w = screen.bounds.w, h = screen.bounds.h;
+  const int w = screen.bounds.w;
+  const int text_w = w - margin * 2;
   auto &game = get_games()[info_game];
 
   draw_background();
-  draw_status_bar("Game info");
+  draw_status_bar("GAME INFO");
 
-  int y = status_bar_h + 4;
   screen.pen = theme::text;
-  screen.text(fit_text(game.title, w - 8, fat_font), fat_font, Point(4, y));
-  y += 10;
+  draw_scrolling_text(info_title, game.title, Rect(margin, 16, text_w, 9));
 
-  screen.pen = theme::hot;
   std::string details = game.author;
   if(!game.version.empty())
     details += details.empty() ? game.version : "  " + game.version;
-  screen.text(fit_text(details, w - 8), minimal_font, Point(4, y));
-  y += 9;
-  screen.pen = theme::dim_text;
-  screen.text(format_size(game.size), minimal_font, Point(4, y));
-  y += 10;
+  screen.pen = theme::muted;
+  screen.text(fit_text(details, text_w), minimal_font, Point(margin, 25));
 
-  screen.pen = theme::chili;
-  screen.h_span(Point(4, y), w - 8);
-  y += 3;
+  screen.pen = theme::line;
+  screen.h_span(Point(margin, 35), text_w);
 
-  // as much of the description as fits above the actions
-  const int row_h = 13;
-  const int actions_y = h - InfoActionCount * row_h - 1;
-  auto wrapped = screen.wrap_text(game.description, w - 8, minimal_font);
-  int max_lines = std::max(0, (actions_y - 2 - y) / 9);
-  size_t end = 0;
-  for(int line = 0; line < max_lines && end != std::string::npos; line++)
-    end = wrapped.find('\n', line ? end + 1 : 0);
-  wrapped = max_lines ? wrapped.substr(0, end) : "";
-
-  screen.pen = theme::text;
-  screen.text(wrapped, minimal_font, Rect(4, y, w - 8, actions_y - y - 2), true, TextAlign::top_left);
-
-  static const char *const labels[InfoActionCount] = {"Play", "Delete game", "Delete save data"};
-
-  for(int i = 0; i < InfoActionCount; i++) {
-    Rect r(0, actions_y + i * row_h, w, row_h);
-    bool is_selected = i == info_action;
-    if(is_selected) {
-      draw_selection(Rect(r.x + 2, r.y, r.w - 4, r.h - 1));
-    }
-
-    screen.pen = i == DeleteSave && !has_save_data(info_game) && !is_selected ? theme::faint_text : theme::text;
-    screen.text(labels[i], minimal_font, Rect(r.x + 7, r.y, r.w - 12, r.h - 1), true, TextAlign::center_left);
+  // three lines of description, cut when there is more
+  auto lines = wrap_words(game.description, text_w);
+  screen.pen = theme::muted;
+  for(int i = 0; i < 3 && i < int(lines.size()); i++) {
+    auto line = lines[i];
+    if(i == 2 && lines.size() > 3)
+      line = fit_text(line + " ...", text_width(line));
+    screen.text(line, minimal_font, Point(margin, 38 + i * 9));
   }
+
+  ListRow rows[InfoActionCount] = {{"Play"}, {"Delete game", format_size(game.size)}, {"Delete save data"}};
+  rows[DeleteSave].dim = !has_save_data(info_game);
+
+  for(int i = 0; i < InfoActionCount; i++)
+    draw_row(Rect(0, 66 + i * row_h, w, row_h), rows[i], i == info_action);
+
+  draw_hints("A SELECT", "B BACK");
 }
 
 // 32blit
@@ -373,11 +377,6 @@ void init() {
 }
 
 void update(uint32_t time) {
-  // slide towards the selected tile
-  slide *= 0.7f;
-  if(std::abs(slide) < 0.01f)
-    slide = 0.0f;
-
   uint32_t pressed = get_pressed(time);
 
   if(dialog_open) {
@@ -423,5 +422,5 @@ void render(uint32_t time) {
   }
 
   if(dialog_open)
-    draw_dialog(dialog_message, dialog_yes_label, dialog_no_label);
+    draw_dialog(dialog_title, dialog_detail, dialog_yes_label, dialog_no_label);
 }

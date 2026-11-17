@@ -82,56 +82,72 @@ static bool is_error(InstallResult res) {
   return res != InstallResult::Installed && res != InstallResult::AlreadyInstalled;
 }
 
-static void installer_render(uint32_t time) {
+static std::string item_name(const InstallItem &item) {
+  // without the extension
+  return item.filename.substr(0, item.filename.size() - 5);
+}
+
+// the game being installed, its number, a bar, and a reminder to keep the power on
+static void render_progress() {
+  const int w = screen.bounds.w;
+  auto &item = items[current_item];
+
+  auto centre = [w](const std::string &text, int y) {
+    screen.text(text, minimal_font, Point((w - text_width(text)) / 2, y));
+  };
+
+  screen.pen = theme::text;
+  centre(fit_text(item_name(item), w - margin * 2), 44);
+
+  screen.pen = theme::muted;
+  centre(std::to_string(current_item + 1) + " OF " + std::to_string(items.size()), 56);
+
+  int progress = item.state == ItemState::Installing ? item.progress : 0;
+  draw_bar(Rect(16, 72, w - 32, 3), progress, item.total ? item.total : 1);
+
+  screen.pen = theme::muted;
+  centre("KEEP THE CONSOLE ON", 96);
+}
+
+// each game and how its install went
+static void render_results() {
   const int w = screen.bounds.w, h = screen.bounds.h;
-  const int footer_h = 13, row_h = 20;
+  const int row_h = 20, top = status_bar_h + 4;
+  const int visible = (h - top - hint_h) / row_h;
 
-  draw_background();
-  draw_status_bar(finished ? "Install complete" : "Installing games");
-
-  // keep the current game in view
-  int top = status_bar_h + 3;
-  int visible = (h - top - footer_h) / row_h;
-  int first = 0;
-  if(current_item >= visible)
-    first = current_item - visible + 1;
-
-  for(int i = first; i < int(items.size()) && i < first + visible; i++) {
+  for(int i = 0; i < int(items.size()) && i < visible; i++) {
     auto &item = items[i];
-    int y = top + (i - first) * row_h;
+    int y = top + i * row_h;
 
-    // name without the extension
-    auto name = item.filename.substr(0, item.filename.size() - 5);
     screen.pen = theme::text;
-    screen.text(fit_text(name, w - 8), minimal_font, Rect(4, y, w - 8, 9), true, TextAlign::top_left);
+    screen.text(fit_text(item_name(item), w - margin * 2), minimal_font, Point(margin, y));
 
-    Rect status(4, y + 10, w - 8, 7);
-
-    if(item.state == ItemState::Waiting) {
-      screen.pen = theme::faint_text;
-      screen.text("Waiting", minimal_font, status, true, TextAlign::top_left);
-    } else if(item.state == ItemState::Installing) {
-      draw_bar(Rect(status.x, status.y + 1, status.w, 5), item.progress, item.total);
-    } else {
-      if(is_error(item.result))
-        screen.pen = theme::hot;
-      else if(item.result == InstallResult::Installed)
-        screen.pen = theme::good;
-      else
-        screen.pen = theme::dim_text;
-
-      screen.text(result_text(item.result), minimal_font, status, true, TextAlign::top_left);
-    }
+    if(is_error(item.result))
+      screen.pen = theme::warning;
+    else if(item.result == InstallResult::Installed)
+      screen.pen = theme::success;
+    else
+      screen.pen = theme::muted;
+    screen.text(fit_text(result_text(item.result), w - margin * 2), minimal_font, Point(margin, y + 9));
   }
 
-  // footer
-  if(!finished) {
-    char buf[32];
-    snprintf(buf, sizeof(buf), "%i of %i", current_item + 1, int(items.size()));
-    screen.pen = theme::dim_text;
-    screen.text(buf, minimal_font, Rect(0, h - footer_h, w, footer_h), true, TextAlign::center_center);
-  } else if(had_errors)
-    draw_hints({{'A', "Continue"}}, h - 11);
+  if(int(items.size()) > visible) {
+    screen.pen = theme::muted;
+    screen.text("+" + std::to_string(items.size() - visible) + " MORE", minimal_font, Point(margin, top + visible * row_h));
+  }
+
+  if(had_errors)
+    draw_hints("A CONTINUE");
+}
+
+static void installer_render(uint32_t time) {
+  draw_background();
+  draw_status_bar(finished ? "INSTALLED" : "INSTALLING");
+
+  if(finished)
+    render_results();
+  else if(current_item < int(items.size()))
+    render_progress();
 }
 
 // draw a frame now, used while the main loop is blocked by an install

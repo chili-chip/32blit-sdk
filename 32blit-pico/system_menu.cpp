@@ -24,7 +24,6 @@ enum Item {
   Resume = 0,
   Volume,
   Brightness,
-  Battery,
   Quit,
   ItemCount
 };
@@ -71,9 +70,7 @@ static void restore_game() {
 }
 
 static void move_selection(int dir) {
-  do {
-    selected = (selected + dir + ItemCount) % ItemCount;
-  } while(selected == Battery); // display only
+  selected = (selected + dir + ItemCount) % ItemCount;
 }
 
 static int menu_tick(uint32_t time) {
@@ -134,73 +131,69 @@ static int menu_tick(uint32_t time) {
   return 20;
 }
 
+static std::string running_title() {
+  auto meta = get_running_game_metadata();
+  if(!meta)
+    return "";
+
+  std::string title(meta->title, sizeof(meta->title));
+  return title.substr(0, title.find('\0'));
+}
+
 static void menu_render(uint32_t time) {
+  static ScrollingText title_text;
   const int w = screen.bounds.w, h = screen.bounds.h;
   const bool small = h < 100; // lores
 
   // dim the paused game once per page, it doesn't redraw underneath
   if(dim_pages > 0) {
-    screen.pen = theme::shade;
+    screen.pen = theme::dim;
     screen.rectangle(Rect(0, 0, w, h));
     dim_pages--;
   }
 
-  static const char *const labels[ItemCount] = {"Resume", "Volume", "Brightness", "Battery", "Quit to home"};
-  static const char *const short_labels[ItemCount] = {"Resume", "Vol", "Light", "Batt", "Quit"};
+  static const char *const labels[ItemCount] = {"Resume", "Volume", "Brightness", "Quit to home"};
+  static const char *const short_labels[ItemCount] = {"Resume", "Vol", "Light", "Quit"};
 
-  const int margin = small ? 2 : 6;
-  const int row_h = small ? 10 : 13;
-  const int title_h = small ? 3 : 14;
-  const int hints_h = small ? 0 : 13;
-  const int bar_w = small ? 22 : 40;
-
-  Rect panel(margin, 0, w - margin * 2, title_h + row_h * ItemCount + hints_h + 4);
-  panel.y = (h - panel.h) / 2;
+  // the game's title and the battery on top, then the rows
+  const int row_h = small ? 10 : 14;
+  const int title_h = small ? 0 : 17;
+  const int x = small ? 1 : 8;
+  Rect panel(x, 0, w - x * 2 - (small ? 2 : 4), title_h + row_h * ItemCount + 3);
+  panel.y = (h - panel.h - (small ? 0 : 4)) / 2;
 
   draw_panel(panel);
 
   if(!small) {
-    screen.pen = theme::text;
-    screen.text("Paused", fat_font, Rect(panel.x + 6, panel.y + 4, panel.w - 12, 9), true, TextAlign::center_left);
+    char battery[8] = "";
+    int level = ::get_battery_level();
+    if(level >= 0)
+      snprintf(battery, sizeof(battery), "%i%%", level);
+
+    int battery_w = text_width(battery);
+    screen.pen = level >= 0 && level <= 15 ? theme::warning : theme::muted;
+    screen.text(battery, minimal_font, Point(panel.x + panel.w - 10 - battery_w, panel.y + 5));
+
+    screen.pen = theme::muted;
+    draw_scrolling_text(title_text, running_title(), Rect(panel.x + 6, panel.y + 5, panel.w - 20 - battery_w, 9));
+
+    screen.pen = theme::line;
+    screen.h_span(Point(panel.x + 1, panel.y + 16), panel.w - 2);
   }
 
   auto &settings = get_current_settings();
 
   for(int i = 0; i < ItemCount; i++) {
-    Rect row(panel.x + 3, panel.y + 2 + title_h + i * row_h, panel.w - 6, row_h - 1);
-    bool is_selected = i == selected;
-
-    if(is_selected)
-      draw_selection(row);
-
-    Rect inner(row.x + 5, row.y, row.w - 8, row.h);
-    screen.pen = theme::text;
-    screen.text(small ? short_labels[i] : labels[i], minimal_font, inner, true, TextAlign::center_left);
-
-    Rect bar(inner.x + inner.w - bar_w, row.y + row.h / 2 - 2, bar_w, 5);
-
+    ListRow row(small ? short_labels[i] : labels[i]);
     if(i == Volume)
-      draw_bar(bar, settings.volume, 100, is_selected);
-    else if(i == Brightness)
-      draw_bar(bar, settings.brightness, 15, is_selected);
-    else if(i == Battery) {
-      char buf[16];
-      int level = ::get_battery_level();
-
-      if(level < 0)
-        snprintf(buf, sizeof(buf), "--");
-      else if(small || !::is_usb_connected())
-        snprintf(buf, sizeof(buf), "%i%%", level);
-      else
-        snprintf(buf, sizeof(buf), "%i%% USB", level);
-
-      screen.pen = level >= 0 && level <= 15 ? theme::pepper : theme::dim_text;
-      screen.text(buf, minimal_font, inner, true, TextAlign::center_right);
+      row.bar = settings.volume;
+    else if(i == Brightness) {
+      row.bar = settings.brightness;
+      row.bar_max = 15;
     }
-  }
 
-  if(hints_h)
-    draw_hints({{'A', "Select"}, {'B', "Resume"}}, panel.y + panel.h - hints_h);
+    draw_row(Rect(panel.x + 1, panel.y + title_h + 2 + i * row_h, panel.w - 2, row_h), row, i == selected);
+  }
 }
 
 void system_menu_toggle() {
