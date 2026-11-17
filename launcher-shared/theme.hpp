@@ -1,58 +1,89 @@
 #pragma once
 
-#include <initializer_list>
 #include <string>
+#include <vector>
 
 #include "engine/engine.hpp"
 #include "graphics/font.hpp"
 
-// the console's look, shared by the home screen and the system screens in the loader
-// chili colours: hot reds and oranges on a deep roasted background
+#include "chilichip.hpp"
+#include "layout.hpp"
+
+// The console OS look, shared by the home screen (vgc-os) and the loader's system screens.
+// Black background, bone text, one red thing per screen: the selection.
+// Colours come from chilichip.hpp, a copy of the design system's tokens (chili-chip/chilichip-brand).
 namespace theme {
-  const blit::Pen background_top(52, 10, 16);
-  const blit::Pen background_bottom(14, 4, 8);
-  const blit::Pen panel(70, 16, 22);
-  const blit::Pen chili(232, 32, 44);
-  const blit::Pen hot(255, 110, 20);
-  const blit::Pen pepper(255, 198, 30);
-  const blit::Pen stem(90, 200, 60);
-  const blit::Pen text(255, 255, 255);
-  const blit::Pen dim_text(240, 170, 150);
-  const blit::Pen faint_text(170, 100, 96);
-  const blit::Pen bar_back(90, 26, 32);
-  const blit::Pen shade(10, 2, 4, 150);
-  const blit::Pen good(110, 220, 110);
+  constexpr blit::Pen pen(chilichip::Rgb c, int a = 255) { return blit::Pen(c.r, c.g, c.b, a); }
+
+  namespace console = chilichip::console;
+  namespace color = chilichip::color;
+
+  const blit::Pen bg = pen(console::bg);
+  const blit::Pen surface = pen(console::surface);           // panels only
+  const blit::Pen line = pen(console::line);                 // bars, borders
+  const blit::Pen text = pen(console::text);
+  const blit::Pen muted = pen(console::muted);               // second lines, hints
+  const blit::Pen slate = pen(color::slate);                 // rows you can't use now
+  const blit::Pen accent = pen(console::accent);             // the selection
+  const blit::Pen accent_shade = pen(console::accent_shade); // the strip under red
+  const blit::Pen accent_ink = pen(color::chili_ink);        // a bar's track on red
+  const blit::Pen on_accent = pen(console::on_accent);       // text on red
+  const blit::Pen success = pen(console::success);
+  const blit::Pen warning = pen(console::warning);
+  const blit::Pen shadow = pen(color::chili_deep);           // hard shadow under panels
+  const blit::Pen dim = blit::Pen(0, 0, 0, 158);             // over a screen behind a panel
 }
 
-constexpr int status_bar_h = 12;
+constexpr int status_bar_h = 12; // then a 1 px line
+constexpr int row_h = 16;
+constexpr int list_top = 16;
+constexpr int list_rows = 6;
+constexpr int hint_h = 12;       // the last 12 px
+constexpr int margin = 4;
 
-blit::Pen mix(const blit::Pen &a, const blit::Pen &b, int t, int max);
+// minimal_font at 2x, for the title card of a game without a cover
+void draw_text_2x(std::string_view text, blit::Point p);
 
-// the full-screen background gradient
+// fill the screen with the background
 void draw_background();
 
-// rectangles with the corners cut off, filled with a left to right gradient
-void draw_round_rect(const blit::Rect &r, const blit::Pen &left, const blit::Pen &right);
-void draw_round_rect(const blit::Rect &r, const blit::Pen &colour);
+// title on the left in muted text, the battery outline (and a plug on USB) on the right,
+// a 1 px line under it
+void draw_status_bar(const char *title);
 
-// battery and USB on the right, the ChiliChip wordmark or a title on the left
-void draw_status_bar(const char *title = nullptr);
+// what A and B do, in the last 12 px. Either can be empty.
+void draw_hints(const char *left, const char *right = nullptr);
 
-// a dark box with a hot outline, for dialogs and menus over other screens
+// text that doesn't fit is cut with "..", then scrolls (see scroll_offset())
+void draw_scrolling_text(ScrollingText &state, const std::string &text, const blit::Rect &box);
+
+// a 3 px line: the track in `line`, the value in `text`
+void draw_bar(const blit::Rect &r, int value, int max, bool on_accent = false);
+
+struct ListRow {
+  ListRow() = default;
+  ListRow(std::string label, std::string value = "") : label(std::move(label)), value(std::move(value)) {}
+
+  std::string label;
+  std::string value;   // right aligned
+  int bar = -1;        // a bar instead of the value when >= 0
+  int bar_max = 100;
+  bool dim = false;    // can't be used now
+};
+
+// one row: 16 px in lists, 14 px in the system menu. The selected row is red with a shade strip,
+// a ">" marker and dark text; its label scrolls when it doesn't fit.
+void draw_row(const blit::Rect &r, const ListRow &row, bool selected);
+
+// status bar, up to six rows, a scroll bar when there are more, and the hint line
+void draw_list(const char *title, const std::vector<ListRow> &rows, int selected, const char *hint_left, const char *hint_right);
+
+// surface fill, 1 px line, hard shadow 4 px down and right, the top right corner cut by 6 px
 void draw_panel(const blit::Rect &r);
 
-// the highlight behind the selected row of a list
-void draw_selection(const blit::Rect &r);
+// a red A button with a shade strip, or an outlined B button. Returns its width.
+int draw_button(blit::Point p, char button, const char *label);
 
-// "A Play  Y Info" with the letters in coloured buttons, centred at y
-struct ButtonHint {
-  char button;
-  const char *label;
-};
-void draw_hints(std::initializer_list<ButtonHint> hints, int y);
-
-// shorten text with ".." until it fits in max_w pixels
-std::string fit_text(const std::string &text, int max_w, const blit::Font &font = blit::minimal_font);
-
-// on_highlight draws it to stand out on a selected row
-void draw_bar(const blit::Rect &r, int value, int max, bool on_highlight = false);
+// dim the screen and show a panel with a title, a muted detail (two lines at most) and the buttons.
+// No B button without no_label.
+void draw_dialog(const std::string &title, const std::string &detail, const char *yes_label, const char *no_label);
