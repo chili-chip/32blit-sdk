@@ -18,10 +18,21 @@ namespace blit {
 
   static_assert(sizeof(SystemSettings) == 16);
 
+  /// Parts of the device, for SystemInfo::hardware. A launcher hides
+  /// settings for parts that are missing.
+  enum HardwareFlags : uint32_t {
+    HW_BRIGHTNESS = 1 << 0, ///< The display brightness can be set
+    HW_CLOCK      = 1 << 1, ///< Real-time clock (utility module)
+    HW_MOTION     = 1 << 2, ///< Accelerometer and gyroscope (utility module)
+    HW_VIBRATION  = 1 << 3, ///< Vibration motor (utility module)
+    HW_RADIO      = 1 << 4, ///< Wi-Fi and Bluetooth
+  };
+
   /// Firmware and storage details, for an about or storage screen
   struct SystemInfo {
     char firmware_version[24] = {}; ///< Version of the firmware (loader)
-    char serial[24] = {};           ///< Unique device id, as hex
+    char serial[20] = {};           ///< Unique device id, as hex
+    uint32_t hardware = 0;          ///< HardwareFlags found at start-up, 0 from older firmware
     uint32_t app_flash_total = 0;   ///< Bytes of flash for installed games
     uint32_t app_flash_used = 0;    ///< Bytes of that flash in use
     uint32_t storage_total = 0;     ///< Size of the file storage (USB drive) in bytes

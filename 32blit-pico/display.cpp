@@ -120,6 +120,10 @@ void set_framebuffer(uint8_t *data, uint32_t max_size, Size max_bounds) {
   (void)level;
 }
 
+[[gnu::weak]] bool display_brightness_supported() {
+  return false;
+}
+
 [[gnu::weak]] void set_display_power(bool on) {
   (void)on;
 }

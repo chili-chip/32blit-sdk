@@ -55,8 +55,8 @@ On the VGC Zero:
 | Button | Notes |
 | ------ | ----- |
 | D-pad, A, B, X, Y | yours to use |
-| MENU | yours to use; a good pause button |
-| HOME | reserved by ChiliChip OS for the system menu and quitting. It shows in `buttons` while held, but don't use it. |
+| MENU | the Start button. Yours to use; a good pause button. Holding it for 2 s puts the console to sleep. |
+| HOME | the Select button. Reserved by ChiliChip OS for the system menu and quitting. It shows in `buttons` while held, but don't use it. |
 | JOYSTICK | never set: the console has no analog stick |
 
 Buttons are debounced by the firmware, so one physical press gives one `pressed` event.
@@ -89,7 +89,7 @@ extern float &vibration;
 ```
 
 `LED`
-:   The status LED's colour. The VGC Zero has a single-colour LED on GPIO 16: it lights whenever any of `r`, `g` or `b` is above 0, and alpha is ignored.
+:   The status LED's colour. Board v3.0.0 has no LED, so this does nothing. Older v1.1.4 boards have a single-colour LED on GPIO 16: it lights whenever any of `r`, `g` or `b` is above 0, and alpha is ignored.
 
     ```cpp
     LED = Pen(255, 0, 0);  // on

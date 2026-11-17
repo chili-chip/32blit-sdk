@@ -22,11 +22,13 @@
 #include "input.hpp"
 #include "installer.hpp"
 #include "led.hpp"
+#include "modules.hpp"
 #include "multiplayer.hpp"
 #include "power.hpp"
 #include "sandbox.hpp"
 #include "screen_sleep.hpp"
 #include "settings.hpp"
+#include "sleep.hpp"
 #include "storage.hpp"
 #include "system_menu.hpp"
 #include "usb.hpp"
@@ -158,6 +160,7 @@ static bool get_system_info(SystemInfo &info) {
   get_app_flash_usage(info.app_flash_total, info.app_flash_used);
 #endif
   get_storage_usage(info.storage_total, info.storage_free);
+  info.hardware = get_hardware_flags();
   return true;
 }
 
@@ -268,8 +271,8 @@ void disable_user_code() {
   blit::render = ::render;
 }
 
-void quit_to_launcher() {
-  // let the game save before it's gone
+// let the game save before it's gone
+static void call_on_quit() {
   auto on_quit = api_data.on_quit;
   api_data.on_quit = nullptr;
 #if BLIT_SANDBOX_ENABLED
@@ -278,6 +281,10 @@ void quit_to_launcher() {
   if(on_quit)
     on_quit();
 #endif
+}
+
+void quit_to_launcher() {
+  call_on_quit();
 
   system_menu_reset();
 
@@ -367,6 +374,14 @@ static void check_home_button() {
 #endif
 }
 
+// a running game quits (there is no suspend), so save it first
+[[noreturn]] static void go_to_sleep() {
+  call_on_quit();
+  close_open_files();
+  save_settings();
+  sleep_enter();
+}
+
 bool core1_started = false;
 
 #ifdef ENABLE_CORE1
@@ -412,6 +427,9 @@ static void init_i2c() {
 }
 
 int main() {
+  // asleep: this only returns once Start has been held to wake
+  sleep_check_at_boot();
+
 #if BLIT_SANDBOX_ENABLED
   for(int i = 0; i < CHANNEL_COUNT; i++)
     new (&API_CHANNELS[i]) blit::AudioChannel();
@@ -432,6 +450,7 @@ int main() {
   stdio_init_all();
 
   init_i2c();
+  init_modules();
 
   init_led();
   init_display();
@@ -439,6 +458,9 @@ int main() {
   init_power();
   init_fs();
   init_settings();
+  // Start is still down from the hold that woke the console
+  if(sleep_woke())
+    screen_sleep_hide_held_buttons();
 #if !defined(ENABLE_CORE1)
   init_audio();
 #endif
@@ -476,6 +498,8 @@ int main() {
     update_input();
     update_screen_sleep(now);
     check_home_button();
+    if(sleep_wanted(now))
+      go_to_sleep();
 
     int ms_to_next_update = do_tick(::now());
     handle_quit_request();

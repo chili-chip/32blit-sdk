@@ -13,7 +13,7 @@ blit_metadata(vgc-os metadata.yml)
 # Handler apps (players for .bitsy, .beat, ...) can be preinstalled after it.
 set(VGC_OS_FACTORY_APPS "" CACHE STRING "Handler .blit files to preinstall in the factory image (;-separated)")
 get_property(VGC_OS_PICO_BLIT TARGET vgc-os PROPERTY BLIT_PICO_BLIT)
-if(VGC_OS_PICO_BLIT AND TARGET blit-loader AND PICO_BOARD STREQUAL "chilichip_vgc")
+if(VGC_OS_PICO_BLIT AND TARGET blit-loader AND PICO_BOARD MATCHES "^chilichip_vgc")
     find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
     set(LOADER_UF2 $<TARGET_FILE_DIR:blit-loader>/blit-loader.uf2)
