@@ -8,8 +8,11 @@ on:
   release:
     types: [published]
 
+# Read-only by default. Only `publish` may write: it attaches the files that
+# `build` made and runs no code from this repository, PyPI or the SDK.
+# https://docs.github.com/en/actions/reference/security/secure-use#use-the-principle-of-least-privilege
 permissions:
-  contents: write
+  contents: read
 
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
@@ -120,10 +123,13 @@ jobs:
     steps:
     - name: Checkout 32Blit SDK
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
 
     - name: Checkout Examples
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
+        persist-credentials: false
         repository: 32blit/32blit-examples
         path: examples
 
@@ -132,6 +138,7 @@ jobs:
       if: matrix.pico-sdk
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
+        persist-credentials: false
         repository: chili-chip/pico-sdk
         path: pico-sdk
         submodules: true
@@ -140,6 +147,7 @@ jobs:
       if: matrix.pico-sdk
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
+        persist-credentials: false
         repository: chili-chip/pico-extras
         path: pico-extras
 
@@ -148,6 +156,7 @@ jobs:
       if: matrix.name == 'PicoVision'
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
+        persist-credentials: false
         repository: pimoroni/picovision
         ref: 03df7694ed4fb396c1d12adf90d0150ada6baedc
         path: picovision
@@ -205,8 +214,11 @@ jobs:
     - name: Set Tag Variable
       if: github.event_name == 'release'
       shell: bash
+      # The tag reaches the script as a variable, not as text in it (template injection).
+      env:
+        TAG_NAME: ${{ github.event.release.tag_name }}
       run: |
-        echo "TRAVIS_TAG=${{github.event.release.tag_name}}" >> $GITHUB_ENV
+        echo "TRAVIS_TAG=${TAG_NAME}" >> $GITHUB_ENV
         python3 tools/update-contributors.py || python tools/update-contributors.py
 
     # The factory image comes with the handler apps that play .bitsy and .beat files.
@@ -233,7 +245,7 @@ jobs:
     - name: Configure CMake
       shell: bash
       working-directory: ${{runner.workspace}}/build
-      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCMAKE_INSTALL_PREFIX=`pwd`/install -DCPACK_PACKAGE_FILE_NAME=${{env.RELEASE_FILE}} ${{matrix.cmake-args}} ${FACTORY_APPS:+"-DVGC_OS_FACTORY_APPS=$FACTORY_APPS"}
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCMAKE_INSTALL_PREFIX=`pwd`/install -DCPACK_PACKAGE_FILE_NAME=${RELEASE_FILE} ${{matrix.cmake-args}} ${FACTORY_APPS:+"-DVGC_OS_FACTORY_APPS=$FACTORY_APPS"}
 
     # Problem matching
     - if: runner.os != 'Windows'
@@ -277,12 +289,34 @@ jobs:
 
     - name: Upload tar
       if: github.event_name == 'release' && matrix.release-suffix != ''
-      uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
-        files: ${{runner.workspace}}/build/${{env.RELEASE_FILE}}.tar.gz
+        name: release-${{ matrix.release-suffix }}-1
+        path: ${{runner.workspace}}/build/${{env.RELEASE_FILE}}.tar.gz
+        if-no-files-found: error
 
     - name: Upload zip
       if: github.event_name == 'release' && matrix.release-suffix != ''
-      uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
-        files: ${{runner.workspace}}/build/${{env.RELEASE_FILE}}.zip
+        name: release-${{ matrix.release-suffix }}-2
+        path: ${{runner.workspace}}/build/${{env.RELEASE_FILE}}.zip
+        if-no-files-found: error
+
+  # The only job that may write: it attaches the release files `build` made.
+  # It runs even when one platform failed, so the others still get published.
+  publish:
+    if: ${{ !cancelled() && github.event_name == 'release' }}
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: release-*
+          path: release
+          merge-multiple: true
+      - uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
+        with:
+          files: release/*
