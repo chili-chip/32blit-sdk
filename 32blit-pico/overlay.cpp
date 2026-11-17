@@ -19,14 +19,15 @@ static void overlay_render(uint32_t time) {
 
   if(!message.empty() || progress_total) {
     const int w = screen.bounds.w, h = screen.bounds.h;
-    Rect panel(2, h - 27, w - 4, 25);
+    // a panel at the bottom, its shadow inside the screen
+    Rect panel(4, h - 32, w - 12, 26);
     draw_panel(panel);
 
     screen.pen = theme::text;
-    screen.text(message, minimal_font, Rect(panel.x + 5, panel.y + 5, panel.w - 10, 9), true, TextAlign::top_left);
+    screen.text(fit_text(message, panel.w - 16), minimal_font, Point(panel.x + 8, panel.y + 6));
 
     if(progress_total)
-      draw_bar(Rect(panel.x + 5, panel.y + panel.h - 9, panel.w - 10, 5), progress_value, progress_total);
+      draw_bar(Rect(panel.x + 8, panel.y + panel.h - 8, panel.w - 16, 3), progress_value, progress_total);
   }
 
   render_flag = false;
