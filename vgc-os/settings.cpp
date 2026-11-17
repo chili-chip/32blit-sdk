@@ -182,8 +182,17 @@ static void render_games() {
   draw_list("SOFTWARE", rows, empty ? -1 : selected_game, empty ? "" : "A INFO", "B BACK");
 }
 
+// "0.1 OF 3.6 MB", short enough to sit next to its label
 static std::string usage_text(uint32_t used, uint32_t total) {
-  return format_size(used) + " OF " + format_size(total);
+  const uint32_t mb = 1024 * 1024;
+  if(total < mb)
+    return format_size(used) + " OF " + format_size(total);
+
+  auto tenths = [mb](uint32_t bytes) {
+    uint32_t t = uint32_t((uint64_t(bytes) * 10 + mb / 2) / mb);
+    return std::to_string(t / 10) + "." + std::to_string(t % 10);
+  };
+  return tenths(used) + " OF " + tenths(total) + " MB";
 }
 
 // a label, the usage on the right and a bar under them

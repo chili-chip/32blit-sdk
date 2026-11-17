@@ -84,6 +84,6 @@ void draw_panel(const blit::Rect &r);
 // a red A button with a shade strip, or an outlined B button. Returns its width.
 int draw_button(blit::Point p, char button, const char *label);
 
-// dim the screen and show a panel with a title, a muted detail (two lines at most) and the buttons.
+// dim the screen and show a panel with a title, a muted detail (three lines at most) and the buttons.
 // No B button without no_label.
 void draw_dialog(const std::string &title, const std::string &detail, const char *yes_label, const char *no_label);

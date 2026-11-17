@@ -103,7 +103,7 @@ void draw_scrolling_text(ScrollingText &state, const std::string &text, const Re
   }
 
   auto old_clip = screen.clip;
-  screen.clip = old_clip.intersection(Rect(box.x, box.y, box.w, std::max(box.h, 9)));
+  screen.clip = old_clip.intersection(Rect(box.x, box.y, box.w, std::max<int32_t>(box.h, 9)));
   screen.text(text, minimal_font, Rect(box.x - offset, box.y, text_w, 9));
   screen.clip = old_clip;
 }
@@ -223,9 +223,19 @@ int draw_button(Point p, char button, const char *label) {
 
 void draw_dialog(const std::string &title, const std::string &detail, const char *yes_label, const char *no_label) {
   const int sw = screen.bounds.w, sh = screen.bounds.h;
-  const int w = std::min(112, sw - 16), h = 62;
-  const Rect box((sw - w) / 2, (sh - 60) / 2, w, h);
-  const int text_w = w - 16;
+  const int w = std::min(112, sw - 16), text_w = w - 16;
+  const int max_lines = 3;
+
+  // up to three lines of detail, the last one cut when there is more
+  auto lines = wrap_words(detail, text_w);
+  if(int(lines.size()) > max_lines) {
+    lines[max_lines - 1] = fit_text(lines[max_lines - 1] + " ...", text_width(lines[max_lines - 1]));
+    lines.resize(max_lines);
+  }
+
+  const int buttons_y = 20 + int(lines.size()) * 9 + (lines.empty() ? 0 : 4);
+  const int h = buttons_y + 20;
+  const Rect box((sw - w) / 2, (sh - h - 4) / 2, w, h);
 
   screen.pen = theme::dim;
   screen.rectangle(Rect(0, 0, sw, sh));
@@ -235,19 +245,12 @@ void draw_dialog(const std::string &title, const std::string &detail, const char
   screen.pen = theme::text;
   screen.text(fit_text(title, text_w - 2), minimal_font, Point(box.x + 8, box.y + 8));
 
-  // two lines of detail, the second one cut when there is more
-  auto wrapped = screen.wrap_text(detail, text_w, minimal_font);
-  auto first_end = wrapped.find('\n');
   screen.pen = theme::muted;
-  screen.text(wrapped.substr(0, first_end), minimal_font, Point(box.x + 8, box.y + 20));
-  if(first_end != std::string::npos) {
-    auto rest = wrapped.substr(first_end + 1);
-    std::replace(rest.begin(), rest.end(), '\n', ' ');
-    screen.text(fit_text(rest, text_w), minimal_font, Point(box.x + 8, box.y + 29));
-  }
+  for(size_t i = 0; i < lines.size(); i++)
+    screen.text(lines[i], minimal_font, Point(box.x + 8, box.y + 20 + int(i) * 9));
 
   int x = box.x + 8;
-  x += draw_button(Point(x, box.y + 42), 'A', yes_label) + 4;
+  x += draw_button(Point(x, box.y + buttons_y), 'A', yes_label) + 4;
   if(no_label)
-    draw_button(Point(x, box.y + 42), 'B', no_label);
+    draw_button(Point(x, box.y + buttons_y), 'B', no_label);
 }
