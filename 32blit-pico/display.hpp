@@ -37,6 +37,9 @@ void ssd1351_set_master_contrast(uint8_t level);
 /// driver supports it.
 void set_display_brightness(uint8_t level);
 
+/// True if set_display_brightness() works on this display.
+bool display_brightness_supported();
+
 /// Turn the panel off (screen sleep) or back on. Does nothing unless the
 /// display driver supports it.
 void set_display_power(bool on);

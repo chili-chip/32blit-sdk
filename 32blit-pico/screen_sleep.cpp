@@ -101,3 +101,11 @@ void update_screen_sleep(uint32_t time) {
 bool is_screen_asleep() {
   return state == ScreenState::Off;
 }
+
+uint32_t screen_idle_ms(uint32_t time) {
+  return time - last_activity;
+}
+
+void screen_sleep_hide_held_buttons() {
+  swallow_buttons = true;
+}

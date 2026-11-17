@@ -1,0 +1,81 @@
+#ifndef _BOARDS_CHILICHIP_VGC_V1_H
+#define _BOARDS_CHILICHIP_VGC_V1_H
+
+#define CHILICHIP_VGC
+#define CHILICHIP_VGC_V1
+
+// The SDK only reads this from the board header named by PICO_BOARD, not from
+// pico2.h below, so without it a build that doesn't pass -DPICO_PLATFORM
+// silently targets the RP2040.
+pico_board_cmake_set(PICO_PLATFORM, rp2350-arm-s)
+
+// ChiliChip console main board v1.1.4 (older boards). Board v3.0.0 is chilichip_vgc.
+// Override default pin assignments before including base board
+
+// --- UART ---
+#ifndef PICO_DEFAULT_UART
+#define PICO_DEFAULT_UART 0
+#endif
+#ifndef PICO_DEFAULT_UART_TX_PIN
+#define PICO_DEFAULT_UART_TX_PIN 0
+#endif
+#ifndef PICO_DEFAULT_UART_RX_PIN
+#define PICO_DEFAULT_UART_RX_PIN 1
+#endif
+
+// --- LED ---
+#ifndef PICO_DEFAULT_LED_PIN
+#define PICO_DEFAULT_LED_PIN 25
+#endif
+
+// --- I2C ---
+#ifndef PICO_DEFAULT_I2C
+#define PICO_DEFAULT_I2C 1
+#endif
+#ifndef PICO_DEFAULT_I2C_SDA_PIN
+#define PICO_DEFAULT_I2C_SDA_PIN 14
+#endif
+#ifndef PICO_DEFAULT_I2C_SCL_PIN
+#define PICO_DEFAULT_I2C_SCL_PIN 15
+#endif
+
+// --- SPI ---
+#ifndef PICO_DEFAULT_SPI
+#define PICO_DEFAULT_SPI 0
+#endif
+#ifndef PICO_DEFAULT_SPI_SCK_PIN
+#define PICO_DEFAULT_SPI_SCK_PIN 18
+#endif
+#ifndef PICO_DEFAULT_SPI_TX_PIN
+#define PICO_DEFAULT_SPI_TX_PIN 19
+#endif
+#ifndef PICO_DEFAULT_SPI_RX_PIN
+#define PICO_DEFAULT_SPI_RX_PIN 16
+#endif
+#ifndef PICO_DEFAULT_SPI_CSN_PIN
+#define PICO_DEFAULT_SPI_CSN_PIN 17
+#endif
+
+// Core 1 only runs the PWM mix loop; keep it in scratch X (4 KiB).
+// Must be set before PICO_STACK_SIZE or pico_multicore copies the 32 KiB value.
+#ifndef PICO_CORE1_STACK_SIZE
+#define PICO_CORE1_STACK_SIZE 0x800
+#endif
+// Core 0 parses C++ (exceptions + Room tiles). Default 2 KiB scratch Y overflows.
+#ifndef PICO_STACK_SIZE
+#define PICO_STACK_SIZE 0x8000
+#endif
+
+// --- FLASH ---
+// VGC Zero is built on the Waveshare RP2350-Plus 16MB. Without this the
+// pico2.h default (4 MB) applies, which hides 12 MB from the game area and
+// puts the storage drive at the wrong offset.
+pico_board_cmake_set_default(PICO_FLASH_SIZE_BYTES, (16 * 1024 * 1024))
+#ifndef PICO_FLASH_SIZE_BYTES
+#define PICO_FLASH_SIZE_BYTES (16 * 1024 * 1024)
+#endif
+
+// Include the base Pico 2 board definition
+#include "boards/pico2.h"
+
+#endif

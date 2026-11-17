@@ -67,7 +67,7 @@ if(dir.x != 0 || dir.y != 0) {
 
 ## Buttons the OS uses
 
-On the console, **HOME** belongs to ChiliChip OS: a short press opens the system menu and holding it quits. Don't use it in your game. **MENU** is yours, and is the natural button for a pause menu.
+On the console, **HOME** is the Select button and belongs to ChiliChip OS: a short press opens the system menu and holding it quits. Don't use it in your game. **MENU** is the Start button. It is yours, and is the natural button for a pause menu.
 
 ## Key repeat
 

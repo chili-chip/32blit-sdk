@@ -5,6 +5,7 @@
 
 #include "hardware/clocks.h"
 #include "hardware/dma.h"
+#include "hardware/gpio.h"
 #include "hardware/pio.h"
 #include "hardware/sync.h"
 
@@ -48,6 +49,13 @@ static void __not_in_flash_func(i2s_irq_handler)() {
 }
 
 void init_audio() {
+#ifdef AUDIO_ENABLE_PIN
+  // amplifier on
+  gpio_init(AUDIO_ENABLE_PIN);
+  gpio_set_dir(AUDIO_ENABLE_PIN, GPIO_OUT);
+  gpio_put(AUDIO_ENABLE_PIN, 1);
+#endif
+
   // setup PIO
 
 #if AUDIO_I2S_DATA_PIN >= 32 || AUDIO_I2S_CLOCK_PIN_BASE >= 31
@@ -63,7 +71,8 @@ void init_audio() {
   pio_sm_config cfg = i2s_program_get_default_config(pio_offset);
 
   const int bitrate = AUDIO_SAMPLE_FREQ * 16 * 2;
-  const int clkdiv = clock_get_hz(clk_sys) / float(bitrate * 2);
+  // fractional, so the sample rate is exact (an integer divider plays ~0.7% sharp at 250 MHz)
+  const float clkdiv = clock_get_hz(clk_sys) / float(bitrate * 2);
   sm_config_set_clkdiv(&cfg, clkdiv);
 
   sm_config_set_out_shift(&cfg, false, true, 32);
@@ -106,7 +115,8 @@ void init_audio() {
   pio_sm_set_enabled(audio_pio, pio_sm, true);
 }
 
-void update_audio(uint32_t time) {
+// runs in a loop on core 1, so keep it out of flash (see audio/pwm.cpp)
+void __not_in_flash_func(update_audio)(uint32_t time) {
   if(!queue_full) {
     auto buffer = audio_buffer + cur_write_buffer_index * AUDIO_BUFFER_SIZE;
 

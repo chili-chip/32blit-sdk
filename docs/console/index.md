@@ -9,14 +9,16 @@ The **ChiliChip VGC Zero** is a handheld console built on the Raspberry Pi RP235
 | Processor | RP2350, dual Arm Cortex-M33, run at 250 MHz by the SDK |
 | RAM | 520 KB on chip; 448 KB of it is available to a running game |
 | Flash | 16 MB QSPI: OS, installed games and a 4 MB USB drive |
-| Screen | 1.5" 128×128 SSD1351 colour OLED over SPI, 16-bit colour |
-| Sound | mono speaker, driven by hardware PWM on GPIO 22 |
-| Controls | d-pad, A, B, X, Y, MENU and HOME buttons |
-| Light | one status LED on GPIO 16 (on or off) |
-| Power | battery with level sensing on GPIO 29; a hard power switch |
+| Screen | 128×128, 16-bit colour: a 1.5" SSD1351 OLED, or a 1.44" ST7735S TFT on the TFT version |
+| Sound | mono speaker on the audio module (MAX98357A, I²S) |
+| Controls | d-pad, A, B, X, Y, Start and Select |
+| Power | battery with level sensing on GPIO 29; no switch, the console [sleeps](sleep.md) |
 | USB | USB-C: the console's drive, serial for `32blit install`, and charging |
+| Optional | utility module (clock, motion sensor, vibration) and radio (Wi-Fi, Bluetooth) |
 
-There is no real-time clock, no tilt sensor and no analog stick, so `tilt` and `joystick` stay at zero on the console.
+This is main board v3.0.0. Older v1.1.4 boards have MENU and HOME buttons, PWM sound, a status LED and a power switch: see [Boards and pins](boards.md).
+
+There are no drivers yet for the clock, the motion sensor, vibration or the radio, and there is no analog stick, so `tilt` and `joystick` stay at zero on the console.
 
 ## Buttons
 
@@ -24,12 +26,12 @@ There is no real-time clock, no tilt sensor and no analog stick, so `tilt` and `
 | ------ | ------------ | ------------------ |
 | D-pad | `DPAD_UP`, `DPAD_DOWN`, `DPAD_LEFT`, `DPAD_RIGHT` | |
 | A, B, X, Y | `A`, `B`, `X`, `Y` | |
-| MENU | `MENU` | |
-| HOME | (`HOME`, but don't use it) | short press: system menu; hold one second: quit to home |
+| Start | `MENU` | hold two seconds: [sleep](sleep.md) |
+| Select | (`HOME`, but don't use it) | short press: system menu; hold one second: quit to home |
 
-HOME belongs to the OS. Your game can still see it in `buttons` while it is held, but releasing it opens the system menu over your game, so don't give it a job of your own. Use MENU for your own pause menu. (In a standalone `.uf2` build there is no OS, and HOME is an ordinary button.)
+Start is `MENU` and Select is `HOME` in code. HOME belongs to the OS. Your game can still see it in `buttons` while it is held, but releasing it opens the system menu over your game, so don't give it a job of your own. Use MENU for your own pause menu. (In a standalone `.uf2` build there is no OS, and HOME is an ordinary button.)
 
-Holding the top **X** button while switching on enters the RP2350's BOOTSEL mode, used to flash `.uf2` files (see [Flashing](flashing.md)).
+The **BOOT** button on the RP2350-Plus enters the RP2350's BOOTSEL mode, used to flash `.uf2` files (see [Flashing](flashing.md)).
 
 ## Screen
 
@@ -44,15 +46,17 @@ The screen is 128×128 pixels. `set_screen_mode(ScreenMode::hires)` gives you al
 
 A full 128×128 frame takes about 13 ms to send to the panel at the 20 MHz SPI clock, so the screen can refresh well above 30 frames a second. The [display driver](display.md) page has the details.
 
-The OLED has no backlight: brightness is the panel's contrast setting, which the player controls from the system menu.
+The OLED has no backlight: brightness is the panel's contrast setting, which the player controls from the system menu. The TFT version has no brightness control.
 
 ## Sound
 
-`blit::channels` gives you 8 synth channels mixed at 22 050 Hz, played through a PWM output on GPIO 22. Mixing runs on the second core from RAM, so sound doesn't stall while the game reads flash or sends the screen. The player's volume setting is applied on top of yours. See [Audio](../api/audio.md).
+`blit::channels` gives you 8 synth channels mixed at 22 050 Hz, sent over I²S to the amplifier on the audio module. Mixing runs on the second core from RAM, so sound doesn't stall while the game reads flash or sends the screen. The player's volume setting is applied on top of yours. See [Audio](../api/audio.md).
 
 ## More about the console
 
 * [ChiliChip OS](chilichip-os.md): the home screen, installing games, the system menu, settings and screen sleep.
 * [Flashing and the loader](flashing.md): setting up a console, the factory image, and building the OS yourself.
 * [Storage, saves and memory](storage.md): where games, saves and settings live, and how memory is split.
+* [Boards and pins](boards.md): the board files, the pin map and the optional parts.
+* [Sleep](sleep.md): sleeping and waking without a power switch.
 * [Display driver](display.md): the SSD1351 driver and its tuning.

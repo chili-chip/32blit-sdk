@@ -60,7 +60,8 @@ The firmware applies brightness, volume and screen sleep to every game itself, s
 ```cpp
 struct SystemInfo {
   char firmware_version[24];   // version of the loader
-  char serial[24];             // unique device id, as hex
+  char serial[20];             // unique device id, as hex
+  uint32_t hardware;           // HardwareFlags: optional parts found at start-up
   uint32_t app_flash_total;    // bytes of flash for installed games
   uint32_t app_flash_used;     // bytes of that in use
   uint32_t storage_total;      // size of the USB drive in bytes
@@ -71,6 +72,18 @@ bool get_system_info(SystemInfo &info);
 ```
 
 Fills in firmware and storage details, for an "about" or storage screen. Returns `false` if the device doesn't provide them.
+
+`hardware` says which optional parts the console has, so a launcher can hide settings for the rest. Older firmware leaves it 0.
+
+| Flag | The console has |
+| ---- | --------------- |
+| `HW_BRIGHTNESS` | a display whose brightness can be set |
+| `HW_CLOCK` | a real-time clock |
+| `HW_MOTION` | an accelerometer and gyroscope |
+| `HW_VIBRATION` | a vibration motor |
+| `HW_RADIO` | Wi-Fi and Bluetooth |
+
+See [Boards and pins](../console/boards.md#optional-parts) for how the console finds them.
 
 ## Checking support
 

@@ -68,8 +68,9 @@ Files that fail stay on the drive so you can see which ones they were.
 
 ## Play and quit
 
-* **Short HOME press** pauses the game and opens the system menu: resume, volume, brightness, battery and quit to home.
-* **Hold HOME** for a second to quit to the home screen.
+* **Short Select (HOME) press** pauses the game and opens the system menu: resume, volume, brightness, battery and quit to home.
+* **Hold Select** for a second to quit to the home screen.
+* **Hold Start** for two seconds to put the console to [sleep](../console/sleep.md). The game quits first.
 
 Either way of quitting calls your game's `on_quit` function first, so it can save. See [Saving progress](../tutorials/saving.md).
 
@@ -77,9 +78,8 @@ Either way of quitting calls your game's `on_quit` function first, so it can sav
 
 The template's `vgc` preset (the same CMake command without `-DBLIT_EXECUTABLE_PICO_BLIT=1`) builds a standalone `game.uf2` that contains the whole firmware and your game. Copy it to the console in BOOTSEL mode:
 
-1. Switch the console off.
-2. Hold the top **X** button and switch it on. A drive named `RP2350` appears.
-3. Copy `game.uf2` onto it. The console restarts into your game.
+1. Hold the **BOOT** button on the RP2350-Plus, press and let go of its **RESET** button, then let go of BOOT. (On a v1.1.4 board: switch it off, hold the top **X** button and switch it on.) A drive named `RP2350` appears.
+2. Copy `game.uf2` onto it. The console restarts into your game.
 
 Standalone builds are handy for quick hardware tests and for [debugging over SWD](../guides/debugging.md#debugging-on-the-console), but they **replace ChiliChip OS**: a standalone build is written from the start of flash, over the loader, the home screen and any games installed in the space it takes. Flash the [factory image](../console/flashing.md#setting-up-a-console) afterwards to get the home screen back, and reinstall any game that no longer starts. Saves and settings live on the USB drive at the end of flash, so they are kept.
 

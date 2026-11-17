@@ -7,7 +7,7 @@ Most of the time you only copy `.blit` games onto a console. This page covers th
 The RP2350 has a built-in bootloader that shows up as a USB drive and accepts `.uf2` files. To enter it:
 
 1. Connect the console to your computer.
-2. Switch it off, then hold the top **X** button and switch it on.
+2. Hold the **BOOT** button on the RP2350-Plus, press and let go of its **RESET** button, then let go of BOOT. On a v1.1.4 board: switch it off, hold the top **X** button and switch it on.
 3. A drive named `RP2350` appears (on Linux usually at `/media/$USER/RP2350`).
 
 Copy a `.uf2` onto that drive and the console writes it to flash and restarts.
@@ -53,7 +53,7 @@ make
 | `vgc-os/vgc-os-factory.uf2` | the loader with the home screen pre-installed, plus the handler apps in `VGC_OS_FACTORY_APPS` |
 | `launcher/launcher.blit` | the stock 32blit launcher, as an alternative home screen |
 
-The CI's "VGC-blit" build produces the same files.
+The CI's "VGC-blit" build produces the same files. For the TFT version or a v1.1.4 board, change `PICO_BOARD` (see [Boards and pins](boards.md)).
 
 `tools/factory-uf2.py` makes the factory image by adding `.blit` files at fixed flash offsets (in KB) to the loader's `.uf2`, numbered as one image:
 
@@ -133,11 +133,13 @@ with serial.Serial("/dev/ttyACM0", timeout=2) as port:
 
 ## Build options
 
-These are set for the console in `32blit-pico/board/chilichip_vgc/config.h` and `config.cmake`. You only need them when changing the OS itself.
+These are set for the console in `32blit-pico/board/chilichip_vgc/config.h` and `config.cmake`. The pins are on [Boards and pins](boards.md). You only need them when changing the OS itself.
 
 | Setting | Effect |
 | ------- | ------ |
-| `SYSTEM_MENU` | a short HOME press opens the system menu (loader only) |
+| `SYSTEM_MENU` | a short HOME (Select) press opens the system menu (loader only) |
+| `SLEEP_BUTTON_PIN`, `SLEEP_BATTERY_MV` | [sleep mode](sleep.md): the button to hold, and the battery voltage that puts the console to sleep |
+| `UTILITY_MODULE_I2C` | look for the utility module's parts at start-up |
 | `AUTO_INSTALL` | `.blit` files on the drive install after eject; the drive is read-only while a game runs (loader only) |
 | `STORAGE_VOLUME_LABEL` | the drive label, `CHILICHIP`; applied at boot, so older drives are relabelled |
 | `USB_VENDOR_STR`, `USB_PRODUCT_STR` | the USB device name, "ChiliChip Console" |

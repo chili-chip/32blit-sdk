@@ -12,3 +12,9 @@ void update_screen_sleep(uint32_t time);
 void apply_screen_brightness();
 
 bool is_screen_asleep();
+
+// time since the last button press
+uint32_t screen_idle_ms(uint32_t time);
+
+// hide the buttons from the game until they're all let go (after a wake from sleep)
+void screen_sleep_hide_held_buttons();

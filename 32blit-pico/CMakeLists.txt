@@ -17,11 +17,13 @@ target_sources(BlitHalPico INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/input.cpp
     ${CMAKE_CURRENT_LIST_DIR}/installer.cpp
     ${CMAKE_CURRENT_LIST_DIR}/main.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/modules.cpp
     ${CMAKE_CURRENT_LIST_DIR}/multiplayer.cpp
     ${CMAKE_CURRENT_LIST_DIR}/overlay.cpp
     ${CMAKE_CURRENT_LIST_DIR}/power.cpp
     ${CMAKE_CURRENT_LIST_DIR}/screen_sleep.cpp
     ${CMAKE_CURRENT_LIST_DIR}/settings.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/sleep.cpp
     ${CMAKE_CURRENT_LIST_DIR}/system_menu.cpp
     ${CMAKE_CURRENT_LIST_DIR}/usb.cpp
     ${CMAKE_CURRENT_LIST_DIR}/usb_descriptors.c
@@ -29,6 +31,7 @@ target_sources(BlitHalPico INTERFACE
 
 target_link_libraries(BlitHalPico INTERFACE
     hardware_adc hardware_dma hardware_i2c hardware_pio hardware_pwm hardware_spi
+    hardware_pll hardware_watchdog hardware_xosc
     pico_multicore pico_stdlib pico_unique_id pico_rand
     tinyusb_device
     FatFsBlitAPI

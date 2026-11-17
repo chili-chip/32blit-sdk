@@ -319,6 +319,20 @@ void update_display(uint32_t time) {
   }
 }
 
+// screen sleep: panel off and in its sleep mode. The backlight stays on until
+// the display's reset line goes low (sleep.cpp), as it has no pin of its own.
+void set_display_power(bool on) {
+  while(dma_is_busy()) {}
+  if(on) {
+    command(MIPIDCS::ExitSleepMode);
+    sleep_ms(120); // the panel needs 120 ms after sleep out
+    command(MIPIDCS::DisplayOn);
+  } else {
+    command(MIPIDCS::DisplayOff);
+    command(MIPIDCS::EnterSleepMode);
+  }
+}
+
 void init_display_core1() {}
 void update_display_core1() {}
 

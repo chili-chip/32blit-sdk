@@ -361,6 +361,10 @@ void set_display_brightness(uint8_t level) {
   ssd1351_set_master_contrast(level);
 }
 
+bool display_brightness_supported() {
+  return true;
+}
+
 void set_display_power(bool on) {
   wait_for_transfer();
   enable_display(on);

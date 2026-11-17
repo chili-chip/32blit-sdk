@@ -117,6 +117,8 @@ nav:
       - console/index.md
       - ChiliChip OS: console/chilichip-os.md
       - Flashing and the loader: console/flashing.md
+      - Boards and pins: console/boards.md
+      - Sleep: console/sleep.md
       - Storage, saves and memory: console/storage.md
       - Display driver: console/display.md
       - Game sandbox: console/sandbox.md
