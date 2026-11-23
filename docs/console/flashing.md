@@ -64,25 +64,26 @@ python3 tools/factory-uf2.py blit-loader.uf2 vgc-os.blit@256 -o vgc-os-factory.u
 The same tool can preload more apps and games. Give a `.blit` an offset (`game.blit@<offset>`), or leave the offset out and it goes right after the one before, on the next 64 KB boundary. Offsets must be multiples of 64 and must not overlap.
 
 ```bash
-python3 tools/factory-uf2.py blit-loader.uf2 vgc-os.blit@256 citsy-32blit.blit chili-beat.blit -o vgc-os-factory.uf2
+python3 tools/factory-uf2.py blit-loader.uf2 vgc-os.blit@256 citsy-32blit.blit chili-beat.blit chili-rpg.blit -o vgc-os-factory.uf2
 ```
 
 ### Handler apps in the factory image
 
-The factory image comes with the apps that play game files, so `.bitsy` and
-`.beat` games show up on the home screen of a new console with nothing to
+The factory image comes with the apps that play game files, so `.bitsy`,
+`.beat` and `.rpg` games show up on the home screen of a new console with nothing to
 install:
 
 | App | Plays | From |
 |---|---|---|
 | citsy (`citsy-32blit.blit`) | `.bitsy` | [citsy-32blit releases](https://github.com/chili-chip/citsy-32blit/releases) |
 | Chili Beat (`chili-beat.blit`) | `.beat` | [chili-beat releases](https://github.com/chili-chip/chili-beat/releases) |
+| Chili RPG (`chili-rpg.blit`) | `.rpg` | [chili-game-sdk releases](https://github.com/chili-chip/chili-game-sdk/releases) |
 
 CI downloads the latest release of each and passes them to CMake. To build the
 same image yourself, download them and set `VGC_OS_FACTORY_APPS`:
 
 ```bash
-cmake .. -DVGC_OS_FACTORY_APPS="/path/to/citsy-32blit.blit;/path/to/chili-beat.blit" ...
+cmake .. -DVGC_OS_FACTORY_APPS="/path/to/citsy-32blit.blit;/path/to/chili-beat.blit;/path/to/chili-rpg.blit" ...
 ```
 
 Leave it empty for a factory image with only the home screen. Updating a

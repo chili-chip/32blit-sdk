@@ -279,16 +279,16 @@ static void update_info(uint32_t pressed) {
       start_game(info_game);
     else if(info_action == DeleteGame) {
       show_confirm("Delete " + game.title + "?", [] {
-        auto title = get_games()[info_game].title;
-        bool had_saves = has_save_data(title);
+        auto deleted = get_games()[info_game];
+        bool had_saves = has_save_data(deleted);
 
         delete_game(info_game);
         after_delete();
 
         // B keeps them, like backing out of any other question
         if(had_saves) {
-          show_confirm("Also delete the save data for " + title + "?", [title] {
-            if(!delete_save_data(title))
+          show_confirm("Also delete the save data for " + deleted.title + "?", [deleted] {
+            if(!delete_save_data(deleted))
               show_message("Couldn't delete all of the save data");
           }, "Delete", "Keep");
         }

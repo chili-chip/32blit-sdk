@@ -46,7 +46,7 @@ category: handler
 filetypes: bits # .bitsy, matched on its first 4 characters
 ```
 
-ChiliChip OS doesn't show a `handler` on the home screen. It shows a card for each matching file on the USB drive instead (at the top, or one folder down), and starts the app with that file. The app reads the path with [`blit::get_launch_path()`](../api/engine.md#launch-path), and calls [`blit::quit_to_home()`](../api/engine.md#quit_to_home) when the player is done. See [ChiliChip OS](../console/chilichip-os.md#apps-that-play-files).
+ChiliChip OS doesn't show a `handler` on the home screen. It shows a card for each matching file on the USB drive instead (at the top, or one folder down), and starts the app with that file. The app reads the path with [`blit::get_launch_path()`](../api/engine.md#launch-path), and calls [`blit::quit_to_home()`](../api/engine.md#quit_to_home) when the player is done. See [ChiliChip OS](../console/chilichip-os.md#apps-that-play-files). Each file gets its own [save folder](../console/storage.md#saves-of-apps-that-play-files).
 
 ## Cover art
 
