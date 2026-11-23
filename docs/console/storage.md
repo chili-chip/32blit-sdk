@@ -21,9 +21,12 @@ CHILICHIP/
 ├── .system/
 │   └── settings.bin     # brightness, volume, screen sleep
 ├── .blit/
-│   └── <game title>/
-│       ├── save0        # write_save(data, 0)
-│       └── save1        # write_save(data, 1)
+│   ├── <game title>/
+│   │   ├── save0        # write_save(data, 0)
+│   │   └── save1        # write_save(data, 1)
+│   └── <app title>/     # an app that plays files, such as Chili RPG
+│       └── <file name>/ # one folder per file it played
+│           └── save0
 └── game.blit            # copied here to install, then removed
 ```
 
@@ -38,6 +41,24 @@ Your game can also read and write its own files on the drive with the [Files API
 * changing your game's title loses access to the old saves, so keep the title stable.
 
 When a game is deleted from the home screen and has saves, the console asks whether to delete them too.
+
+### Saves of apps that play files
+
+An app that plays files (`category: handler`, such as citsy, Chili Beat or Chili RPG) plays many games. So when the home screen starts it with a file, its saves go in a folder for that file:
+
+| App started | `get_save_path()` | `write_save(data, 0)` writes |
+| --- | --- | --- |
+| On its own | `.blit/Chili RPG/` | `.blit/Chili RPG/save0` |
+| With `my-quest.rpg` | `.blit/Chili RPG/my-quest.rpg/` | `.blit/Chili RPG/my-quest.rpg/save0` |
+| With `rpg-games/my-quest.rpg` | `.blit/Chili RPG/my-quest.rpg/` | `.blit/Chili RPG/my-quest.rpg/save0` |
+
+- Each game keeps its own saves, and one game never overwrites another's.
+- The folder is named after the file name only, not its folder. Two files with the same name in different folders share saves.
+- File names longer than 64 characters are cut.
+- On a game's info page, **Delete save data** deletes that file's folder only. Deleting the file asks about its saves, like any game.
+- The app needs no change: `write_save()` and `read_save()` use the folder by themselves.
+
+`blit::save_dir()` in `32blit/engine/save_dir.hpp` makes these paths. Its host test runs with `ctest` on desktop builds.
 
 The console has a hard power switch, and switching it off can't be caught. Save at checkpoints as well as in `on_quit`. See [Saving progress](../tutorials/saving.md).
 

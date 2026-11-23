@@ -29,6 +29,12 @@ endif()
 add_subdirectory(launcher)
 add_subdirectory(vgc-os)
 
+# host tests, on desktop builds only
+if(NOT 32BLIT_HW AND NOT 32BLIT_PICO AND NOT EMSCRIPTEN AND NOT CMAKE_CROSSCOMPILING)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
+
 # if the examples are there, build them too
 if(EXISTS ${CMAKE_CURRENT_LIST_DIR}/examples/CMakeLists.txt)
     add_subdirectory(examples)

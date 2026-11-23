@@ -44,8 +44,9 @@ void trim_covers(int keep_index, int keep_range);
 bool play_game(int index);
 
 bool delete_game(int index);
-// saves live in .blit/<title>/, so they outlive the game
+// saves live in .blit/<title>/, so they outlive the game; a file an app plays
+// keeps its own in .blit/<app title>/<file name>/
 bool delete_save_data(int index);
-bool delete_save_data(const std::string &title);
+bool delete_save_data(const Game &game);
 bool has_save_data(int index);
-bool has_save_data(const std::string &title);
+bool has_save_data(const Game &game);

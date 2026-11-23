@@ -10,6 +10,7 @@
 #include "diskio.h"
 
 #include "blit_launch.hpp"
+#include "engine/save_dir.hpp"
 #include "file.hpp"
 #include "storage.hpp"
 #include "executable.hpp"
@@ -143,15 +144,14 @@ bool get_storage_usage(uint32_t &total, uint32_t &free) {
   return true;
 }
 
-static char save_path[32]; // max game title length is 24 + ".blit/" + "/"
+// ".blit/" + a title (up to 24) + "/" + a file name (up to 64) + "/"
+static char save_path[128];
 
 const char *get_save_path() {
   const char *app_name = "_unknown";
 
   if(!directory_exists(".blit"))
     create_directory(".blit");
-
-  app_name = "_unknown";
 
   if(auto meta = get_running_game_metadata())
     app_name = meta->title;
@@ -172,12 +172,17 @@ const char *get_save_path() {
     }
   }
 
-  snprintf(save_path, sizeof(save_path), ".blit/%s/", app_name);
+  // a handler started with a file keeps that file's saves apart
+  auto launch = get_launch_path();
+  auto dir = blit::save_dir(app_name, launch ? launch : "");
+  snprintf(save_path, sizeof(save_path), "%s", dir.c_str());
 
-  // make sure it exists
+  // make sure it exists (and the app's folder above it, for a handler)
+  auto parent = blit::save_parent_dir(save_path);
+  if(parent != ".blit/" && !directory_exists(parent))
+    create_directory(parent);
   if(!directory_exists(save_path))
     create_directory(save_path);
-
 
   return save_path;
 }

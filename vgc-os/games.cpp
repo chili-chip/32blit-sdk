@@ -5,6 +5,7 @@
 
 #include "engine/api_private.hpp"
 #include "executable.hpp"
+#include "engine/save_dir.hpp"
 
 using namespace blit;
 
@@ -359,12 +360,16 @@ bool delete_game(int index) {
   return true;
 }
 
-static std::string save_dir(const std::string &title) {
-  return ".blit/" + title;
+// .blit/<title>, or .blit/<app title>/<file name> for a file an app plays
+// (see blit::save_dir), without the trailing slash
+static std::string save_dir(const Game &game) {
+  auto dir = game.is_app_file ? blit::save_dir(game.author, game.path) : blit::save_dir(game.title);
+  dir.pop_back();
+  return dir;
 }
 
-bool has_save_data(const std::string &title) {
-  auto dir = save_dir(title);
+bool has_save_data(const Game &game) {
+  auto dir = save_dir(game);
   return directory_exists(dir) && !list_files(dir).empty();
 }
 
@@ -372,24 +377,36 @@ bool has_save_data(int index) {
   if(index < 0 || index >= int(games.size()))
     return false;
 
-  return has_save_data(games[index].title);
+  return has_save_data(games[index]);
 }
 
-bool delete_save_data(const std::string &title) {
-  auto dir = save_dir(title);
+// a folder and what is in it, one level of folders down (an app's folder holds
+// a folder per file it played)
+static bool remove_dir(const std::string &dir) {
+  bool ok = true;
+  for(auto &file : list_files(dir)) {
+    auto path = dir + "/" + file.name;
+    if(file.flags & FileFlags::directory) {
+      for(auto &inner : list_files(path))
+        ok = remove_file(path + "/" + inner.name) && ok;
+    }
+    ok = remove_file(path) && ok;
+  }
+
+  return remove_file(dir) && ok;
+}
+
+bool delete_save_data(const Game &game) {
+  auto dir = save_dir(game);
   if(!directory_exists(dir))
     return true;
 
-  bool ok = true;
-  for(auto &file : list_files(dir))
-    ok = remove_file(dir + "/" + file.name) && ok;
-
-  return remove_file(dir) && ok;
+  return remove_dir(dir);
 }
 
 bool delete_save_data(int index) {
   if(index < 0 || index >= int(games.size()))
     return false;
 
-  return delete_save_data(games[index].title);
+  return delete_save_data(games[index]);
 }

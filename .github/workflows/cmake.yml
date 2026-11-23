@@ -221,7 +221,7 @@ jobs:
         echo "TRAVIS_TAG=${TAG_NAME}" >> $GITHUB_ENV
         python3 tools/update-contributors.py || python tools/update-contributors.py
 
-    # The factory image comes with the handler apps that play .bitsy and .beat files.
+    # The factory image comes with the handler apps that play .bitsy, .beat and .rpg files.
     - name: Get handler apps for the factory image
       if: matrix.name == 'VGC (.blit)'
       shell: bash
@@ -238,6 +238,9 @@ jobs:
         fi
         if ! gh release download -R chili-chip/chili-beat -p 'chili-beat.blit'; then
           echo "::warning::No chili-beat release: the factory image has no .beat player"
+        fi
+        if ! gh release download -R chili-chip/chili-game-sdk -p 'chili-rpg.blit'; then
+          echo "::warning::No chili-game-sdk release with chili-rpg.blit: the factory image has no .rpg player"
         fi
         list=$(ls $apps/*.blit 2>/dev/null | paste -sd ';' || true)
         echo "FACTORY_APPS=$list" >> $GITHUB_ENV
@@ -260,6 +263,11 @@ jobs:
         ccache --zero-stats || true
         cmake --build . --config $BUILD_TYPE -j 2
         ccache --show-stats || true
+
+    - name: Host tests
+      if: matrix.name == 'Linux'
+      working-directory: ${{runner.workspace}}/build
+      run: ctest --output-on-failure
 
     - name: Sandbox test (QEMU)
       if: matrix.name == 'VGC (sandbox)'
