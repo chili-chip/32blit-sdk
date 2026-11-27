@@ -67,4 +67,6 @@ cd 32blit-pico/display
 g++ -std=c++17 -o /tmp/scale_map_test scale_map_test.cpp && /tmp/scale_map_test
 ```
 
-Not done yet: picking the driver at run time from the panel's ID ([#108](https://github.com/chili-chip/32blit-sdk/issues/108)), and letting new games ask for the full 320×240.
+The 2.0" TFT is the only screen from the next board on (decided 2026-11-27). The OLED driver stays the `chilichip_vgc` default until that board ships, because every console built so far has the OLED. Then `dbi_st7789_scaled` becomes the default.
+
+Not done yet: letting new games ask for the full 320×240 ([#115](https://github.com/chili-chip/32blit-sdk/issues/115)).
