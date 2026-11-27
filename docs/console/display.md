@@ -30,6 +30,41 @@ Phone cameras at 30 or 60 fps can still beat against the OLED's own PWM refresh.
 
 ## Brightness and power
 
-There is no backlight. Brightness is the panel's master contrast (command `0xC7`, levels 0–15), set by the loader from the player's setting. Don't dim the screen by drawing a translucent black layer: it costs time every frame and looks worse.
+On the OLED there is no backlight. Brightness is the panel's master contrast (command `0xC7`, levels 0–15), set by the loader from the player's setting. Don't dim the screen by drawing a translucent black layer: it costs time every frame and looks worse.
 
-[Screen sleep](chilichip-os.md#screen-sleep) uses the driver's `set_display_brightness()` and `set_display_power()` (the SSD1351 display-off command), declared in `32blit-pico/display.hpp`. Only the SSD1351 driver implements them so far.
+[Screen sleep](chilichip-os.md#screen-sleep) uses the driver's `set_display_brightness()` and `set_display_power()` (the SSD1351 display-off command), declared in `32blit-pico/display.hpp`. The SSD1351 driver implements both; the ST7789 driver below implements `set_display_power()`.
+
+## 2.0" TFT (ER-TFT020-3)
+
+The bigger screen is an [EastRising ER-TFT020-3](https://www.buydisplay.com/2-inch-240x320-ips-tft-lcd-display-with-connector-fpc), a 2.0" IPS 320×240 ST7789 panel, mounted sideways on the TFT display module. It uses the same pins as the OLED. Build for it with:
+
+```sh
+cmake ... -DPICO_BOARD=chilichip_vgc -DBLIT_DISPLAY_DRIVER=dbi_st7789_scaled
+```
+
+Games still draw into a 128×128 framebuffer, so every game runs unchanged. The `dbi_st7789_scaled` driver scales each frame up and centres it:
+
+| Game mode | On the panel | Scale |
+| --------- | ------------ | ----- |
+| hires 128×128 | 240×240, 40 px black bars left and right | 1.875× |
+| lores 64×64 | 240×240 | 3.75× |
+
+The scaling is nearest neighbour, so pixels stay sharp. At 1.875× most source pixels are 2 panel pixels wide and every eighth one is 1 pixel wide. The driver fills one 240-pixel line in the DMA interrupt, only when the source row changes, and sends it by DMA.
+
+| Item | Setting |
+| ---- | ------- |
+| SPI clock | 62.5 MHz cap (`ST7789_MAX_CLOCK`), about 15 ms per frame |
+| Rotation | `ST7789_ROTATION`, 90 (default) or 270, to suit how the panel is mounted |
+| Colour order | `ST7789_BGR` 1 if red and blue are swapped |
+| Tearing effect | the panel has no TE pin, so frames are sent every 20 ms |
+| Backlight | on the module, switched on by the reset line. No dimming yet. |
+| Screen sleep | `set_display_power()` uses the ST7789 sleep and display-off commands |
+
+The scale helpers are in `32blit-pico/display/scale_map.hpp`. Check them on the host with:
+
+```sh
+cd 32blit-pico/display
+g++ -std=c++17 -o /tmp/scale_map_test scale_map_test.cpp && /tmp/scale_map_test
+```
+
+Not done yet: picking the driver at run time from the panel's ID ([#108](https://github.com/chili-chip/32blit-sdk/issues/108)), and letting new games ask for the full 320×240.
